@@ -1,0 +1,16 @@
+{
+  "name": "meinereise-app",
+  "version": "1.0.0",
+  "description": "MeineReise – Reise-App (Design: Modern & Minimal) mit Anbindung an die BOSYS UI.SPACE Traveller API (GetReiseData)",
+  "private": true,
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=18"
+  }
+}

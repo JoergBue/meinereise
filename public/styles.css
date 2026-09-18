@@ -1,0 +1,369 @@
+:root {
+  --bg: oklch(99% 0.002 90);
+  --surface: oklch(100% 0 0);
+  --border: oklch(91% 0.006 90);
+  --ink: oklch(20% 0.02 260);
+  --ink-soft: oklch(50% 0.02 260);
+  --ink-faint: oklch(60% 0.02 260);
+  --neutral-chip: oklch(94% 0.006 90);
+  /* Standard-Akzentfarbe (Stufen aus #118186 abgeleitet, siehe app.js
+     buildBrandScale). Sobald GetReiseData eine brandColor liefert,
+     überschreibt applyBrandColor() diese vier Variablen zur Laufzeit mit
+     der reisebüro-spezifischen Farbskala. */
+  --accent: #118186;
+  --accent-ink: #0e6e72;
+  --accent-soft: #e7f2f3;
+  --accent-contrast: #ffffff;
+  --accent-300: #a0cdcf;
+  --accent-400: #58a7aa;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-body: "IBM Plex Sans", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: oklch(94% 0.006 90);
+  font-family: var(--font-body);
+  color: var(--ink);
+}
+
+.app {
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 0 0 1px oklch(88% 0.006 90);
+}
+
+.demo-banner {
+  background: oklch(93% 0.05 85);
+  color: oklch(35% 0.08 75);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  padding: 7px 12px;
+}
+
+.views {
+  flex: 1;
+  overflow-y: auto;
+  padding: 30px 24px 28px 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.view[hidden] { display: none; }
+
+.loading {
+  padding: 60px 0;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 14px;
+}
+
+.error-box {
+  background: oklch(96% 0.03 30);
+  border: 1px solid oklch(85% 0.06 30);
+  color: oklch(35% 0.08 30);
+  border-radius: 14px;
+  padding: 16px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+/* Header / greeting */
+.greeting-row { display: flex; align-items: center; justify-content: space-between; }
+.greeting-eyebrow { font-size: 13px; color: var(--ink-soft); }
+.greeting-name { font-family: var(--font-display); font-size: 21px; font-weight: 600; margin-top: 2px; }
+.avatar {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--neutral-chip);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-soft); flex-shrink: 0;
+}
+
+/* Hero trip card */
+.hero-card {
+  border-radius: 22px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.hero-photo {
+  height: 132px;
+  background: linear-gradient(135deg, var(--accent-300), var(--accent-400));
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  padding: 14px;
+}
+.hero-photo svg { position: absolute; left: 14px; top: 14px; opacity: .85; }
+.hero-photo-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hero-badge {
+  position: relative;
+  z-index: 1;
+  background: oklch(20% 0.02 260 / .55);
+  color: var(--accent-contrast);
+  font-size: 12px; font-weight: 600;
+  padding: 6px 10px; border-radius: 100px;
+}
+.hero-body { padding: 18px 18px 20px 18px; display: flex; flex-direction: column; gap: 10px; }
+.hero-title { font-family: var(--font-display); font-size: 20px; font-weight: 600; }
+.hero-sub { font-size: 13.5px; color: var(--ink-soft); margin-top: 2px; }
+.hero-meta { display: flex; gap: 16px; padding-top: 4px; border-top: 1px solid var(--border); }
+.hero-meta-item { display: flex; align-items: center; gap: 6px; padding-top: 10px; font-size: 13px; color: var(--ink-soft); }
+
+/* Reisebüro-Angabe (nur auf der Einstiegsseite) */
+.agency-info { font-size: 12px; color: var(--ink-soft); margin-top: -4px; }
+.agency-info strong { color: var(--ink); font-weight: 600; }
+
+/* Status chip row */
+.status-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.status-chip {
+  flex: 1; min-width: 90px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  background: var(--accent-soft); color: var(--accent-ink);
+  border-radius: 100px; padding: 8px 12px;
+  font-size: 12px; font-weight: 500;
+}
+
+/* Primary button */
+.btn-primary {
+  width: 100%;
+  background: var(--accent); color: var(--accent-contrast);
+  border: none; border-radius: 14px; padding: 15px;
+  font-size: 15px; font-weight: 600; font-family: inherit;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  cursor: pointer;
+}
+
+/* Section heading with link */
+.section-head { display: flex; align-items: center; justify-content: space-between; }
+.section-title { font-family: var(--font-display); font-size: 16px; font-weight: 600; }
+.section-link { font-size: 12.5px; font-weight: 500; color: var(--accent); text-decoration: none; background: none; border: none; cursor: pointer; font-family: inherit; }
+
+/* Mini offer cards (overview teaser) */
+.mini-cards { display: flex; gap: 12px; }
+.mini-card { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 12px; }
+.mini-card-icon { width: 32px; height: 32px; border-radius: 9px; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; margin-bottom: 10px; color: var(--accent-ink); }
+.mini-card-title { font-size: 13.5px; font-weight: 600; }
+.mini-card-sub { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+
+/* Day tabs */
+.day-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.day-tab {
+  flex-shrink: 0; width: 46px; padding: 8px 0; border-radius: 12px;
+  background: var(--neutral-chip);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  border: none; cursor: pointer; font-family: inherit;
+}
+.day-tab .dow { font-size: 10px; color: var(--ink-soft); }
+.day-tab .num { font-size: 14px; font-weight: 600; color: var(--ink); }
+.day-tab.is-active { background: var(--accent); }
+.day-tab.is-active .dow { color: oklch(90% 0.03 200); }
+.day-tab.is-active .num { font-weight: 700; color: var(--accent-contrast); }
+
+/* Timeline */
+.timeline { display: flex; flex-direction: column; }
+.timeline-row { display: flex; gap: 14px; }
+.timeline-rail { display: flex; flex-direction: column; align-items: center; width: 20px; }
+.timeline-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); margin-top: 5px; flex-shrink: 0; }
+.timeline-line { flex: 1; width: 1.5px; background: var(--border); }
+.timeline-body { flex: 1; padding-bottom: 22px; }
+.timeline-time { font-size: 12px; color: var(--ink-soft); margin-bottom: 6px; }
+.timeline-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 13px; display: flex; gap: 11px; align-items: flex-start; }
+.timeline-card.is-highlight { background: var(--accent-soft); border-color: transparent; }
+.timeline-card.is-clickable { cursor: pointer; align-items: center; }
+.timeline-card svg { flex-shrink: 0; margin-top: 2px; color: var(--accent-ink); }
+.timeline-card.is-clickable svg:first-child { margin-top: 0; }
+.timeline-card-title { font-size: 14px; font-weight: 600; }
+.timeline-card-sub { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; overflow-x: auto; }
+.timeline-card-sub a { color: var(--accent-ink); }
+.timeline-card-sub table { border-collapse: collapse; max-width: 100%; }
+.timeline-card-sub td { padding: 2px 6px 2px 0; }
+.timeline-card-sub img { max-width: 100%; height: auto; border-radius: 8px; }
+.timeline-card-sub ul, .timeline-card-sub ol { padding-left: 18px; margin: 4px 0; }
+.timeline-card.is-highlight .timeline-card-sub { color: var(--accent-ink); }
+.timeline-card.is-clickable > div:nth-child(2) { flex: 1; min-width: 0; }
+.timeline-empty { color: var(--ink-faint); font-size: 13px; padding: 8px 0 22px 0; }
+
+/* Weather widget */
+.weather-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; }
+.weather-title { font-size: 12.5px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.weather-title svg { color: var(--accent); flex-shrink: 0; }
+.weather-html { font-size: 12.5px; color: var(--ink-soft); overflow-x: auto; }
+.weather-html table { border-collapse: collapse; width: 100%; }
+.weather-html td { padding: 4px 6px 4px 0; white-space: nowrap; }
+.weather-html img { vertical-align: middle; height: 22px; width: auto; }
+
+/* Filter chips */
+.chip-row { display: flex; gap: 8px; overflow-x: auto; }
+.chip { flex-shrink: 0; padding: 8px 16px; border-radius: 100px; background: var(--neutral-chip); font-size: 13px; color: oklch(40% 0.02 260); border: none; cursor: pointer; font-family: inherit; }
+.chip.is-active { background: var(--accent); color: var(--accent-contrast); font-weight: 600; }
+
+/* Featured banner */
+.featured-banner { background: oklch(20% 0.02 260); border-radius: 18px; padding: 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.featured-eyebrow { font-size: 12px; font-weight: 600; color: oklch(78% 0.06 200); letter-spacing: .03em; }
+.featured-title { font-size: 15.5px; font-weight: 600; color: oklch(99% 0.005 90); margin-top: 4px; }
+.featured-sub { font-size: 12.5px; color: oklch(75% 0.01 260); margin-top: 2px; }
+.featured-price { flex-shrink: 0; background: oklch(99% 0.005 90); color: var(--ink); border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+
+/* Offer list */
+.offer-list { display: flex; flex-direction: column; gap: 12px; }
+.offer-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px; display: flex; align-items: flex-start; gap: 13px; }
+.offer-icon { width: 48px; height: 48px; border-radius: 12px; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--accent-ink); }
+.offer-title { font-size: 14px; font-weight: 600; }
+.offer-sub { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
+.offer-sub.offer-html { overflow-x: auto; }
+.offer-sub.offer-html table { border-collapse: collapse; max-width: 100%; }
+.offer-sub.offer-html td { padding: 2px 6px 2px 0; }
+.offer-sub.offer-html img { max-width: 100%; height: auto; border-radius: 8px; }
+.offer-img { display: block; max-width: 100%; height: auto; border-radius: 10px; margin-top: 6px; }
+.offer-link { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; font-size: 12.5px; font-weight: 600; color: var(--accent-ink); text-decoration: none; }
+.offer-price { text-align: right; flex-shrink: 0; }
+.offer-price .amount { font-size: 13.5px; font-weight: 600; }
+.offer-price .unit { font-size: 11.5px; color: var(--ink-faint); }
+
+/* Documents */
+.doc-featured { background: var(--accent-soft); border-radius: 16px; padding: 14px; display: flex; align-items: center; gap: 13px; cursor: pointer; }
+.doc-featured .offer-icon { background: var(--accent); color: var(--accent-contrast); }
+.doc-list { display: flex; flex-direction: column; gap: 10px; }
+.doc-row { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 13px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.doc-row-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--neutral-chip); display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: oklch(45% 0.02 260); }
+.doc-title { font-size: 13.5px; font-weight: 600; }
+.doc-sub { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+.doc-status { font-size: 11.5px; color: var(--accent-ink); margin-top: 3px; }
+.doc-status:empty { display: none; }
+.doc-chevron { color: oklch(60% 0.02 260); flex-shrink: 0; }
+
+/* Bottom nav */
+.bottom-nav {
+  flex-shrink: 0; height: 80px;
+  border-top: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 20px;
+  background: var(--bg);
+}
+.nav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: none; border: none; cursor: pointer; font-family: inherit;
+  color: var(--ink-faint);
+}
+.nav-item span { font-size: 11px; }
+.nav-item.is-active { color: var(--accent); }
+.nav-item.is-active span { font-weight: 600; }
+
+@media (max-width: 430px) {
+  .app { box-shadow: none; }
+}
+
+/* ---------- Desktop-/Browser-Ansicht ---------- */
+/* Ab dieser Fensterbreite wechselt die App automatisch von der schmalen
+   Handy-Karte auf ein breites Layout mit Seitennavigation links und einer
+   großen Inhaltsfläche rechts – rein über diese Media Query, ohne
+   zusätzlichen Umschalter: Browserfenster verbreitern (bzw. auf einem
+   Desktop-Monitor öffnen) genügt, beide Ansichten laufen auf demselben
+   Code/derselben Seite parallel und teilen sich alle Daten/Funktionen. */
+.sidebar-brand { display: none; }
+
+@media (min-width: 900px) {
+  html, body { background: oklch(92% 0.006 90); }
+
+  .app {
+    max-width: 1180px;
+    margin: 32px auto;
+    min-height: calc(100dvh - 64px);
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    grid-template-rows: auto 1fr;
+    border-radius: 24px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px oklch(20% 0.02 260 / .14), 0 0 0 1px var(--border);
+  }
+
+  /* Demo-Banner läuft nur über die Inhaltsspalte (nicht über die
+     Seitennavigation), sonst verschiebt sein Zeilenanteil das Grid, weil
+     die Sidebar über beide Zeilen spannt. */
+  .demo-banner { grid-column: 2; grid-row: 1; }
+
+  .sidebar-brand {
+    display: block;
+    font-family: var(--font-display); font-weight: 700; font-size: 18px;
+    color: var(--ink); padding: 6px 12px 22px 12px;
+  }
+
+  .bottom-nav {
+    grid-row: 1 / -1;
+    grid-column: 1;
+    height: auto;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 3px;
+    padding: 28px 14px;
+    border-top: none;
+    border-right: 1px solid var(--border);
+  }
+  .nav-item {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 11px 12px;
+    border-radius: 11px;
+  }
+  .nav-item span { font-size: 13.5px; }
+  .nav-item.is-active { background: var(--accent-soft); }
+
+  .views {
+    grid-column: 2;
+    grid-row: 2;
+    max-width: 760px;
+    padding: 40px 56px 48px 56px;
+  }
+
+  .hero-photo { height: 220px; }
+  .hero-title { font-size: 24px; }
+
+  .offer-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .doc-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+}
+
+/* Hotel-Detailseite */
+.back-link {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: none; border: none; padding: 0; margin-bottom: 14px;
+  font-size: 13px; font-weight: 600; color: var(--accent-ink);
+  cursor: pointer; font-family: inherit;
+}
+.hotel-detail { display: flex; flex-direction: column; gap: 14px; }
+.hotel-gallery-hero { border-radius: 16px; overflow: hidden; height: 190px; background: var(--neutral-chip); }
+.hotel-gallery-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hotel-gallery-strip { display: flex; gap: 8px; overflow-x: auto; }
+.hotel-gallery-strip img { width: 84px; height: 64px; object-fit: cover; border-radius: 10px; flex-shrink: 0; }
+.hotel-gallery-more {
+  width: 84px; height: 64px; flex-shrink: 0; border-radius: 10px; border: none;
+  background: var(--accent-soft); color: var(--accent-ink); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: inherit; font-size: 13px; font-weight: 700; line-height: 1.2;
+}
+.hotel-gallery-more span { font-size: 10.5px; font-weight: 500; }
+.hotel-detail-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hotel-stars { color: var(--accent); font-size: 15px; letter-spacing: 1px; flex-shrink: 0; }
+.hotel-description { font-size: 13.5px; color: var(--ink-soft); line-height: 1.55; margin: 0; overflow-x: auto; }
+.hotel-description a { color: var(--accent-ink); }
+.hotel-description table { border-collapse: collapse; max-width: 100%; }
+.hotel-description td { padding: 2px 6px 2px 0; }
+.hotel-description img { max-width: 100%; height: auto; border-radius: 8px; }
+.hotel-description ul, .hotel-description ol { padding-left: 18px; margin: 4px 0; }
+.hotel-map { display: flex; flex-direction: column; gap: 8px; }
+.hotel-map iframe { width: 100%; height: 200px; border: 1px solid var(--border); border-radius: 14px; }
