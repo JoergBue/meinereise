@@ -326,7 +326,14 @@ function serveStatic(pathname, res) {
       return;
     }
     const ext = path.extname(fullPath);
-    res.writeHead(200, { "Content-Type": MIME[ext] || "application/octet-stream" });
+    // Ohne Cache-Control-Header entscheidet der Browser nach eigenen
+    // Heuristiken, wie lange er index.html/app.js/styles.css cached – das
+    // hat schon dazu geführt, dass ein Redeploy serverseitig längst aktuell
+    // war, der Browser aber weiter eine alte app.js aus dem Cache zeigte.
+    // "no-cache" erzwingt bei jedem Laden einen frischen Abruf, statt sich
+    // auf Browser-Heuristiken zu verlassen (die App ist klein genug, dass
+    // der Performance-Nachteil nicht ins Gewicht fällt).
+    res.writeHead(200, { "Content-Type": MIME[ext] || "application/octet-stream", "Cache-Control": "no-cache" });
     res.end(content);
   });
 }
