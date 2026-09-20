@@ -12,7 +12,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { demoReiseData, demoOfficeData } = require("./demoData");
+const { demoReiseData, demoOfficeData, demoPlacesData } = require("./demoData");
 
 loadDotEnv(path.join(__dirname, ".env"));
 
@@ -45,6 +45,11 @@ const BOSYS_SESSION_ID = process.env.BOSYS_SESSION_ID || "";
 // Reise-Kontext – GetOffice hängt ja ohnehin nicht an einer travelID.
 const BOSYS_OFFICE_TOKEN = process.env.BOSYS_OFFICE_TOKEN || "";
 
+// "In der Nähe" (siehe TODO.md) – unabhängig von BOSYS, ruft die Google
+// Places API (New) auf, um Restaurants/Sehenswürdigkeiten rund um den
+// Hotel-Standort eines Reisetags anzuzeigen. Ohne Key: Demo-Orte.
+const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
+
 // Nur URL + sessionID sind zwingend, um einen Live-Aufruf zu versuchen –
 // Terminal/Source haben sinnvolle Defaults, und manche Gateways (z.B.
 // Test-/Sandbox-Umgebungen) verlangen (noch) keinen Token.
@@ -52,6 +57,7 @@ const isLiveConfigured = Boolean(BOSYS_API_URL && BOSYS_SESSION_ID);
 // GetOffice braucht keine sessionID (siehe Session.sessionID in der
 // Beispiel-Antwort, bleibt leer) – nur URL + der eigene Office-Token.
 const isOfficeLiveConfigured = Boolean(BOSYS_API_URL && BOSYS_OFFICE_TOKEN);
+const isPlacesLiveConfigured = Boolean(GOOGLE_PLACES_API_KEY);
 
 // GetDokument (Dokument-Abruf) braucht zusätzlich zur travelID eine
 // sessionID + officeID – beide liefert GetReiseData in seiner Antwort mit.
@@ -93,6 +99,11 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === "/api/office") {
     await handleOffice(res);
+    return;
+  }
+
+  if (url.pathname === "/api/places") {
+    await handlePlaces(url, res);
     return;
   }
 
@@ -309,6 +320,96 @@ async function handleOffice(res) {
   }
 }
 
+// "In der Nähe" (siehe TODO.md) – Google Places API (New), searchNearby.
+// Zwei getrennte Aufrufe (Restaurants/Sehenswürdigkeiten) statt einem
+// gemeinsamen mit mehreren includedTypes, damit die Zuordnung eindeutig
+// ist und das Frontend die Antwort nicht selbst nachsortieren muss.
+const PLACES_FIELD_MASK = "places.displayName,places.rating,places.userRatingCount,places.primaryTypeDisplayName,places.googleMapsUri";
+
+// Ergebnisse pro Standort (auf ca. 110m gerundete Koordinaten) kurz cachen,
+// damit ein mehrfacher Tageswechsel zum selben Hotel nicht jedes Mal erneut
+// gegen Google abgerechnet wird. Rein In-Memory, geht beim Neustart verloren
+// – für die aktuelle Nutzung (eine kleine Reisegruppe) ausreichend.
+const placesCache = new Map(); // "lat,lon" -> { time, payload }
+const PLACES_CACHE_TTL_MS = 30 * 60 * 1000;
+
+async function fetchPlacesByType(lat, lon, includedType) {
+  const response = await fetch("https://places.googleapis.com/v1/places:searchNearby", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+      "X-Goog-FieldMask": PLACES_FIELD_MASK
+    },
+    body: JSON.stringify({
+      includedTypes: [includedType],
+      maxResultCount: 6,
+      languageCode: "de",
+      locationRestriction: {
+        circle: { center: { latitude: lat, longitude: lon }, radius: 2000.0 }
+      }
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Places API antwortete mit Status ${response.status}`);
+  }
+
+  const json = await response.json();
+  return (json.places || [])
+    .map((p) => ({
+      name: (p.displayName && p.displayName.text) || "",
+      rating: typeof p.rating === "number" ? p.rating : null,
+      ratingCount: p.userRatingCount || 0,
+      typeLabel: (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || "",
+      mapsUrl: p.googleMapsUri || ""
+    }))
+    .filter((p) => p.name);
+}
+
+async function handlePlaces(url, res) {
+  const lat = parseFloat(url.searchParams.get("lat"));
+  const lon = parseFloat(url.searchParams.get("lon"));
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    sendJson(res, 400, { error: "lat/lon fehlt oder ungültig" });
+    return;
+  }
+
+  if (!isPlacesLiveConfigured) {
+    sendJson(res, 200, {
+      source: "demo",
+      hinweis: "GOOGLE_PLACES_API_KEY ist nicht in .env gesetzt – es werden Demo-Orte angezeigt.",
+      data: demoPlacesData(lat, lon)
+    });
+    return;
+  }
+
+  const cacheKey = `${lat.toFixed(3)},${lon.toFixed(3)}`;
+  const cached = placesCache.get(cacheKey);
+  if (cached && Date.now() - cached.time < PLACES_CACHE_TTL_MS) {
+    sendJson(res, 200, { source: "live", data: cached.payload });
+    return;
+  }
+
+  try {
+    const [restaurants, attractions] = await Promise.all([
+      fetchPlacesByType(lat, lon, "restaurant"),
+      fetchPlacesByType(lat, lon, "tourist_attraction")
+    ]);
+    const payload = { restaurants, attractions };
+    placesCache.set(cacheKey, { time: Date.now(), payload });
+    sendJson(res, 200, { source: "live", data: payload });
+  } catch (err) {
+    console.error("[Places] Live-Aufruf fehlgeschlagen, liefere Demo-Orte:", err.message);
+    sendJson(res, 200, {
+      source: "demo",
+      hinweis: `Live-Aufruf fehlgeschlagen (${err.message}) – es werden Demo-Orte angezeigt.`,
+      data: demoPlacesData(lat, lon)
+    });
+  }
+}
+
 function serveStatic(pathname, res) {
   let filePath = pathname === "/" ? "/index.html" : pathname;
   // Path-Traversal verhindern und auf PUBLIC_DIR beschränken
@@ -374,4 +475,7 @@ server.listen(PORT, () => {
   console.log(isOfficeLiveConfigured
     ? "Mein Reisebüro (GetOffice): Live-Anbindung aktiv."
     : "Mein Reisebüro (GetOffice): BOSYS_OFFICE_TOKEN nicht gesetzt – Demo-Daten aktiv.");
+  console.log(isPlacesLiveConfigured
+    ? "In der Nähe (Google Places): Live-Anbindung aktiv."
+    : "In der Nähe (Google Places): GOOGLE_PLACES_API_KEY nicht gesetzt – Demo-Orte aktiv.");
 });

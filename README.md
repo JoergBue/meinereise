@@ -45,6 +45,7 @@ Alle Zugangsdaten für die BOSYS-Schnittstelle stehen ausschließlich in
 | `BOSYS_TOKEN`        | Header.Token (Authentifizierungstoken) – optional, falls das Gateway (noch) keinen verlangt |
 | `BOSYS_SESSION_ID`   | GetReiseData.sessionID (daraus liest BOSYS Firma/Büro/Kunde) |
 | `BOSYS_OFFICE_TOKEN` | GetOffice.Token (der "HashKey") für den Bereich "Mein Reisebüro" – unabhängig von `BOSYS_SESSION_ID`/travelID |
+| `GOOGLE_PLACES_API_KEY` | API-Key für "In der Nähe" (Google Places API "New") – unabhängig von BOSYS |
 | `PORT`               | lokaler Port, Standard `3000`                           |
 
 Zwingend für den Live-Modus sind nur `BOSYS_GATEWAY_URL` und
@@ -64,6 +65,18 @@ unabhängig davon über `BOSYS_OFFICE_TOKEN`: Fehlt dieser, oder schlägt der
 Live-Aufruf fehl, liefert `/api/office` Demo-Reisebüro-Daten (Team,
 Öffnungszeiten, Kontakt) – ohne dass dafür `BOSYS_SESSION_ID` gesetzt sein
 muss.
+
+"In der Nähe" im Reiseplan (`/api/places`) ist komplett unabhängig von
+BOSYS: Zum Standort des Hotels eines Reisetags (`locationLatitude`/
+`locationLongitude`, sofern vorhanden) werden über die Google Places API
+("New", `searchNearby`) nahegelegene Restaurants und Sehenswürdigkeiten
+angezeigt. Ohne `GOOGLE_PLACES_API_KEY`, oder wenn der Live-Aufruf
+fehlschlägt, liefert `/api/places` feste Demo-Orte statt eines Fehlers.
+Ergebnisse werden serverseitig 30 Minuten pro Standort gecacht, um die
+Anzahl kostenpflichtiger Places-Aufrufe gering zu halten. Voraussetzung für
+den Live-Betrieb: in der Google Cloud Console ein Projekt mit aktivierter
+"Places API (New)" und eingerichtetem Billing, der API-Key sollte auf HTTP-
+Referrer bzw. IP der eigenen Domain eingeschränkt werden.
 
 ## Deployment auf Hostinger (hPanel, Node.js-App)
 
@@ -96,6 +109,7 @@ Hostinger. Die App liegt komplett in diesem GitHub-Repository
    BOSYS_SOURCE=e-confirm
    BOSYS_SESSION_ID=<echte sessionID>
    BOSYS_OFFICE_TOKEN=<HashKey für Mein Reisebüro, falls vorhanden>
+   GOOGLE_PLACES_API_KEY=<Google-Places-API-Key, falls vorhanden>
    ```
 
    `PORT` nicht selbst setzen – Hostinger gibt den Port über die Umgebung

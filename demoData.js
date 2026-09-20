@@ -476,4 +476,24 @@ function demoOfficeData() {
   };
 }
 
-module.exports = { demoReiseData, demoOfficeData };
+// "In der Nähe" (Google Places, siehe TODO.md / server.js handlePlaces) –
+// lat/lon werden hier bewusst nicht ausgewertet (anders als bei einem
+// echten Places-Aufruf): es sind feste Beispielorte rund um Taormina, damit
+// sich die Demo-Reise durchgängig konsistent anfühlt, ohne selbst eine
+// Nähe-Suche nachzubauen.
+function demoPlacesData(lat, lon) {
+  return {
+    restaurants: [
+      { name: "Trattoria da Nino", rating: 4.6, ratingCount: 812, typeLabel: "Italienisches Restaurant", mapsUrl: "https://www.google.com/maps/search/?api=1&query=Trattoria+da+Nino+Taormina" },
+      { name: "Ristorante Bella Vista", rating: 4.4, ratingCount: 1203, typeLabel: "Restaurant", mapsUrl: "https://www.google.com/maps/search/?api=1&query=Ristorante+Bella+Vista+Taormina" },
+      { name: "Pizzeria Etna", rating: 4.3, ratingCount: 540, typeLabel: "Pizzeria", mapsUrl: "https://www.google.com/maps/search/?api=1&query=Pizzeria+Etna+Taormina" }
+    ],
+    attractions: [
+      { name: "Teatro Antico di Taormina", rating: 4.7, ratingCount: 24500, typeLabel: "Sehenswürdigkeit", mapsUrl: "https://www.google.com/maps/search/?api=1&query=Teatro+Antico+di+Taormina" },
+      { name: "Isola Bella", rating: 4.6, ratingCount: 18700, typeLabel: "Naturschutzgebiet", mapsUrl: "https://www.google.com/maps/search/?api=1&query=Isola+Bella+Taormina" },
+      { name: "Giardini della Villa Comunale", rating: 4.5, ratingCount: 6100, typeLabel: "Park", mapsUrl: "https://www.google.com/maps/search/?api=1&query=Giardini+della+Villa+Comunale+Taormina" }
+    ]
+  };
+}
+
+module.exports = { demoReiseData, demoOfficeData, demoPlacesData };

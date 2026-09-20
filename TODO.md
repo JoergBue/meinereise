@@ -90,3 +90,27 @@ Offene Punkte:
 - Betrifft u.a. Wochentage/Datumsformate (`fmtDate`, `DOW`,
   `OFFICE_DOW_LABELS`), alle statischen Labels in `app.js` sowie
   `index.html` (Nav-Beschriftungen).
+
+## 6. "In der Nähe" (Google Places) ✅ umgesetzt / Viator noch offen
+
+Im Reiseplan wird zum Hotel-Standort des jeweiligen Tages
+(`locationLatitude`/`locationLongitude`) über die Google Places API
+("New", `searchNearby`) eine kleine Auswahl nahegelegener Restaurants und
+Sehenswürdigkeiten angezeigt (Name, Bewertung, Kategorie, Link zu Google
+Maps). Serverseitig `/api/places`, Key (`GOOGLE_PLACES_API_KEY` in `.env`)
+– ohne Konfiguration bzw. bei fehlgeschlagenem Live-Aufruf Demo-Orte
+(Beispielorte rund um Taormina), gleiches Fallback-Muster wie bei
+`GetReiseData`/`GetOffice`. Ergebnisse werden serverseitig 30 Minuten pro
+Standort gecacht (Kostenkontrolle). Bisher nur für den Hotel-Standort –
+Kreuzfahrthäfen (nur Portname, keine Koordinaten in `cruiseRouteDet`)
+sind noch nicht angebunden.
+
+Noch offen: **Viator API** für buchbare Ausflüge/Touren (statt nur
+Empfehlungen anzuzeigen, echte Produkte mit Bildern/Preisen/Buchungslink
+passend zum jeweiligen Reisetag). Dafür nötig:
+- Bewerbung beim Viator Partner Program (kein sofortiger Self-Service-Key
+  wie bei Google) – noch nicht beantragt.
+- Server-Route analog zu `/api/places` (z.B. `/api/viator`), die per
+  Destination/Standort passende Produkte abruft, mit Demo-Fallback.
+- Anzeigeort klären: eigener Abschnitt im Reiseplan (wie "In der Nähe"),
+  oder Ergänzung der bestehenden "Passend für heute"-Angebotsvorschläge.

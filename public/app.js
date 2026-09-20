@@ -38,7 +38,9 @@
     building: '<rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22v-4h6v4"/><path d="M8 6h1M8 10h1M8 14h1M15 6h1M15 10h1M15 14h1"/>',
     phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/>',
     mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/>',
-    globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/>'
+    globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/>',
+    utensils: '<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
+    star: '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>'
   };
 
   function icon(name, size = 20) {
@@ -187,7 +189,12 @@
     activeView: "overview",
     activeDay: null,
     activeOfferFilter: "all",
-    showAlarm: false
+    showAlarm: false,
+    // "In der Nähe" (Google Places, siehe placesLocationForDay/loadNearbyPlaces):
+    // pro Standort ("lat,lon" gerundet) das Ergebnis (oder "loading"/"error")
+    // zwischenspeichern, damit ein Tageswechsel hin und her nicht jedes Mal
+    // neu vom Server lädt.
+    placesCache: new Map()
   };
 
   function getTravelIDFromURL() {
@@ -330,6 +337,26 @@
     return verlaufList().find((item) => item.type === "H"
       && item.checkInDate && item.checkOutDate
       && item.checkInDate <= dayKeyStr && dayKeyStr <= item.checkOutDate) || null;
+  }
+
+  // Standort für "In der Nähe" (Google Places, siehe loadNearbyPlaces weiter
+  // unten) – bisher nur aus dem Hotel dieses Tages (locationLatitude/
+  // -Longitude sind dort bereits vorhanden). Eine Geokodierung von
+  // Kreuzfahrthäfen (cruiseRouteDet liefert nur den Portnamen, keine
+  // Koordinaten) wäre ein möglicher nächster Ausbauschritt.
+  //
+  // Läuft an diesem Tag zusätzlich eine Kreuzfahrt (cruiseForDay), ist der
+  // Gast nicht am Hotel, auch wenn checkInDate/checkOutDate den Tag
+  // formal mit einschließen (z.B. während eines Landausflugs vom Schiff) –
+  // gleiche Priorität Kreuzfahrt > Hotel wie in renderEmptyDay().
+  function placesLocationForDay(dayKeyStr) {
+    if (cruiseForDay(dayKeyStr)) return null;
+    const hotel = hotelForDay(dayKeyStr);
+    if (!hotel) return null;
+    const lat = parseFloat(hotel.locationLatitude);
+    const lon = parseFloat(hotel.locationLongitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return { lat, lon };
   }
 
   // Analog zu hotelForDay: die Kreuzfahrt selbst ist nur EIN ReiseVerlauf-
@@ -495,11 +522,97 @@
 
   // ---------- View: Reiseplan ----------
 
+  // ---------- "In der Nähe" (Google Places) ----------
+  //
+  // Zeigt zum Standort des Hotels dieses Tages (siehe placesLocationForDay)
+  // ein paar nahegelegene Restaurants/Sehenswürdigkeiten – serverseitig
+  // über /api/places (Google Places API, mit Demo-Fallback ohne API-Key,
+  // gleiches Muster wie /api/reisedaten und /api/office).
+
+  function placesCacheKey(lat, lon) {
+    // Auf 3 Nachkommastellen gerundet (~110m) statt exakter Koordinaten,
+    // damit minimale Abweichungen nicht zu unnötig vielen Cache-Einträgen/
+    // Serveraufrufen führen.
+    return `${lat.toFixed(3)},${lon.toFixed(3)}`;
+  }
+
+  async function loadNearbyPlaces(lat, lon, key) {
+    state.placesCache.set(key, "loading");
+    try {
+      const res = await fetch(`/api/places?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
+      const json = await res.json();
+      if (!res.ok || !json.data) throw new Error("Unerwartete Antwort");
+      state.placesCache.set(key, {
+        restaurants: json.data.restaurants || [],
+        attractions: json.data.attractions || [],
+        hinweis: json.source === "demo" ? json.hinweis : ""
+      });
+    } catch (err) {
+      state.placesCache.set(key, "error");
+    }
+    // Nur neu rendern, wenn währenddessen nicht die Ansicht oder der Tag
+    // gewechselt wurde – sonst würde ein längst verlassener Ladevorgang die
+    // Anzeige eines inzwischen anderen Tages/einer anderen View überschreiben.
+    const stillRelevant = state.activeView === "plan"
+      && placesLocationForDay(state.activeDay)
+      && placesCacheKey(placesLocationForDay(state.activeDay).lat, placesLocationForDay(state.activeDay).lon) === key;
+    if (stillRelevant) renderPlan();
+  }
+
+  function renderPlacesRow(label, iconName, places) {
+    return `
+      <div class="places-group">
+        <div class="places-group-title">${icon(iconName, 14)} ${label}</div>
+        <div class="places-scroll">
+          ${places.map((p) => `
+            <a class="place-card" href="${escapeHtml(p.mapsUrl || "#")}" target="_blank" rel="noopener">
+              <div class="place-card-name">${escapeHtml(p.name || "")}</div>
+              ${p.rating ? `<div class="place-card-meta">${icon("star", 12)} ${Number(p.rating).toFixed(1)}${p.ratingCount ? ` (${p.ratingCount})` : ""}</div>` : ""}
+              ${p.typeLabel ? `<div class="place-card-type">${escapeHtml(p.typeLabel)}</div>` : ""}
+            </a>`).join("")}
+        </div>
+      </div>`;
+  }
+
+  function renderNearbyPlaces(lat, lon) {
+    const key = placesCacheKey(lat, lon);
+    const cached = state.placesCache.get(key);
+
+    if (!cached || cached === "loading") {
+      if (!cached) loadNearbyPlaces(lat, lon, key);
+      return `
+        <div class="places-section">
+          <div class="places-title">${icon("pin", 15)} In der Nähe</div>
+          <div class="places-loading">Wird geladen …</div>
+        </div>`;
+    }
+
+    if (cached === "error") {
+      return `
+        <div class="places-section">
+          <div class="places-title">${icon("pin", 15)} In der Nähe</div>
+          <div class="places-loading">Empfehlungen konnten gerade nicht geladen werden.</div>
+        </div>`;
+    }
+
+    const { restaurants, attractions, hinweis } = cached;
+    if (!restaurants.length && !attractions.length) return "";
+
+    return `
+      <div class="places-section">
+        <div class="places-title">${icon("pin", 15)} In der Nähe</div>
+        ${restaurants.length ? renderPlacesRow("Restaurants", "utensils", restaurants) : ""}
+        ${attractions.length ? renderPlacesRow("Sehenswürdigkeiten", "mountain", attractions) : ""}
+        ${hinweis ? `<div class="places-hinweis">${escapeHtml(hinweis)}</div>` : ""}
+      </div>`;
+  }
+
   function renderPlan() {
     const days = tripDayList();
     if (!state.activeDay && days.length) state.activeDay = days[0].key;
 
     const activeItems = state.activeDay ? verlaufForDay(state.activeDay) : [];
+    const placesLoc = state.activeDay ? placesLocationForDay(state.activeDay) : null;
 
     document.getElementById("view-plan").innerHTML = `
       <div>
@@ -519,6 +632,8 @@
         ${activeItems.length ? activeItems.map((item, i) => renderTimelineRow(item, i === activeItems.length - 1, state.activeDay)).join("")
           : renderEmptyDay(state.activeDay)}
       </div>
+
+      ${placesLoc ? renderNearbyPlaces(placesLoc.lat, placesLoc.lon) : ""}
     `;
 
     document.querySelectorAll(".day-tab").forEach((btn) => {
