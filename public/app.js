@@ -1259,6 +1259,8 @@
         ${myOffice.openingadd ? `<div class="hero-sub">${escapeHtml(myOffice.openingadd)}</div>` : ""}
       </div>` : ""}
 
+      ${myOffice.teampic ? `<div class="hotel-gallery-hero"><img src="${escapeHtml(myOffice.teampic)}" alt="" loading="lazy" onerror="this.closest('.hotel-gallery-hero').remove();"></div>` : ""}
+
       ${myOffice.teamtext ? `<div class="hotel-description">${myOffice.teamtext}</div>` : ""}
 
       ${berater.length ? `
