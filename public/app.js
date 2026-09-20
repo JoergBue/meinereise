@@ -302,7 +302,22 @@
   }
 
   function verlaufForDay(dayKeyStr) {
-    return verlaufList().filter((item) => (item.sortDate || "").startsWith(dayKeyStr));
+    const items = verlaufList().filter((item) => (item.sortDate || "").startsWith(dayKeyStr));
+    // Mietwagen (type "M") ist EIN ReiseVerlauf-Eintrag mit sortDate =
+    // Abholtag – die Rückgabe (returnDateTime) fällt meist auf einen
+    // anderen Tag und wird daher hier separat ergänzt, damit an diesem
+    // Tag ebenfalls eine Timeline-Zeile ("Rückgabe Mietwagen", siehe
+    // renderTimelineRow) erscheint statt nur die "Mietwagen unterwegs"-
+    // Kontextkarte. Fallen Abholung und Rückgabe auf denselben Tag,
+    // steckt der Eintrag schon in items (über sortDate) – nicht doppeln.
+    verlaufList().forEach((item) => {
+      if (item.type === "M" && item.returnDateTime
+        && item.returnDateTime.slice(0, 8) === dayKeyStr
+        && !items.includes(item)) {
+        items.push(item);
+      }
+    });
+    return items;
   }
 
   // An vielen Reisetagen gibt es keinen eigenen ReiseVerlauf-Eintrag (der
@@ -501,7 +516,7 @@
       </div>
 
       <div class="timeline">
-        ${activeItems.length ? activeItems.map((item, i) => renderTimelineRow(item, i === activeItems.length - 1)).join("")
+        ${activeItems.length ? activeItems.map((item, i) => renderTimelineRow(item, i === activeItems.length - 1, state.activeDay)).join("")
           : renderEmptyDay(state.activeDay)}
       </div>
     `;
@@ -609,7 +624,7 @@
     `;
   }
 
-  function renderTimelineRow(item, isLast) {
+  function renderTimelineRow(item, isLast, dayKeyStr) {
     const meta = VERLAUF_META[item.type] || { icon: "mountain", label: item.type };
     let title = meta.label;
     let sub = "";
@@ -632,17 +647,19 @@
       sub = escapeHtml(item.text || "");
       time = "";
     } else if (item.type === "M") {
-      // carCategoryClass enthält bereits "Mietwagen …" (z.B. "Mietwagen
-      // Mercedes Benz A-Klasse") – daher nicht nochmal "Mietwagen ·"
-      // voranstellen. pickupDateTime/returnDateTime kommen als
-      // "JJJJMMDDHHMMSS" (14-stellig, die ersten 8 Stellen sind das Datum).
-      title = escapeHtml(item.carCategoryClass || item.carOperator || "Mietwagen");
+      // Ein Mietwagen-Eintrag erscheint an ZWEI Tagen in der Timeline: am
+      // Tag von pickupDateTime als "Abholung Mietwagen" und am Tag von
+      // returnDateTime als "Rückgabe Mietwagen" (siehe verlaufForDay(),
+      // das den Eintrag für den Rückgabetag zusätzlich einblendet). Welcher
+      // der beiden Fälle vorliegt, entscheidet der übergebene dayKeyStr.
+      // pickupDateTime/returnDateTime kommen als "JJJJMMDDHHMMSS"
+      // (14-stellig, die ersten 8 Stellen sind das Datum).
       const pickupDate = (item.pickupDateTime || "").slice(0, 8);
       const returnDate = (item.returnDateTime || "").slice(0, 8);
-      const range = [pickupDate, returnDate].filter(Boolean).map(fmtDate).join(" – ");
-      const stations = [item.pickupStation, item.returnStation].filter(Boolean).map(escapeHtml).join(" → ");
-      sub = [range, stations].filter(Boolean).join(" · ");
-      time = fmtTime(item.pickupDateTime);
+      const isReturn = !!dayKeyStr && dayKeyStr === returnDate && dayKeyStr !== pickupDate;
+      title = isReturn ? "Rückgabe Mietwagen" : "Abholung Mietwagen";
+      sub = escapeHtml(item.carCategoryClass || "");
+      time = fmtTime(isReturn ? item.returnDateTime : item.pickupDateTime);
     } else if (item.type === "C") {
       title = `Kreuzfahrt · ${escapeHtml(item.cruiseShipName || "")}`;
       // Für den Zeilentag (meist der Einschiffungstag) den Routenplan-Halt
