@@ -90,26 +90,7 @@ html, body {
   background: var(--neutral-chip);
   display: flex; align-items: center; justify-content: center;
   color: var(--ink-soft); flex-shrink: 0;
-  border: none; padding: 0; font-family: inherit;
 }
-/* Glocke wird aktiv, sobald die API ein "alarm.text" liefert (siehe app.js
-   renderOverview) – andere Füllfarbe + anklickbar statt rein dekorativ. */
-.avatar-alarm { background: oklch(93% 0.05 85); color: oklch(35% 0.08 75); cursor: pointer; }
-
-.alarm-banner {
-  display: flex; align-items: flex-start; gap: 10px;
-  background: oklch(93% 0.05 85); color: oklch(35% 0.08 75);
-  border-radius: 14px; padding: 13px 14px;
-  font-size: 13px; line-height: 1.5;
-}
-.alarm-banner[hidden] { display: none; }
-.alarm-banner-icon { flex-shrink: 0; margin-top: 1px; }
-.alarm-banner-text { flex: 1; }
-.alarm-banner-close {
-  flex-shrink: 0; background: none; border: none; padding: 2px;
-  color: inherit; opacity: .7; cursor: pointer; font-family: inherit;
-}
-.alarm-banner-close:hover { opacity: 1; }
 
 /* Hero trip card */
 .hero-card {
@@ -215,12 +196,6 @@ html, body {
 .timeline-card.is-highlight .timeline-card-sub { color: var(--accent-ink); }
 .timeline-card.is-clickable > div:nth-child(2) { flex: 1; min-width: 0; }
 .timeline-empty { color: var(--ink-faint); font-size: 13px; padding: 8px 0 22px 0; }
-
-/* Tag ohne eigenen Programmpunkt: Hotel-Kontext + passende Angebote */
-.day-empty { display: flex; flex-direction: column; gap: 16px; padding-bottom: 12px; }
-.day-suggestions { display: flex; flex-direction: column; gap: 10px; }
-.day-suggestions-title { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
-.day-suggestions .mini-card { cursor: pointer; }
 
 /* Weather widget */
 .weather-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 16px; }
@@ -392,39 +367,3 @@ html, body {
 .hotel-description ul, .hotel-description ol { padding-left: 18px; margin: 4px 0; }
 .hotel-map { display: flex; flex-direction: column; gap: 8px; }
 .hotel-map iframe { width: 100%; height: 200px; border: 1px solid var(--border); border-radius: 14px; }
-
-/* Kreuzfahrt-Routenplan (aus cruiseRouteDet, siehe app.js renderCruiseRoute) */
-.cruise-route { display: flex; flex-direction: column; gap: 10px; }
-
-/* Mein Reisebüro (GetOffice, siehe app.js renderOffice) */
-.office-contact-row { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; }
-.office-contact-row .offer-link { margin-top: 0; }
-.office-hours { display: flex; flex-direction: column; gap: 6px; }
-.office-hours-row {
-  display: flex; justify-content: space-between; gap: 12px; font-size: 13px;
-  padding: 9px 13px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-}
-.office-hours-row span:first-child { color: var(--ink-soft); }
-.office-hours-row span:last-child { font-weight: 500; }
-.office-team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 12px; }
-.office-team-card {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 13px 10px;
-  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 3px;
-}
-.office-team-photo { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; background: var(--neutral-chip); margin-bottom: 4px; }
-.office-team-name { font-size: 12.5px; font-weight: 600; line-height: 1.3; }
-.office-team-function { font-size: 11px; color: var(--ink-soft); line-height: 1.3; }
-.office-team-contact { display: flex; flex-direction: column; gap: 3px; margin-top: 5px; width: 100%; }
-.office-team-contact a {
-  font-size: 10.5px; color: var(--accent-ink); text-decoration: none;
-  display: inline-flex; align-items: center; gap: 3px; justify-content: center;
-  max-width: 100%;
-}
-.office-team-contact a svg { flex-shrink: 0; }
-/* Ellipsis muss auf einem eigenen Span sitzen, nicht auf dem zentrierten
-   Flex-Container selbst – sonst wird bei zu langem Inhalt (justify-content:
-   center + overflow:hidden) an BEIDEN Enden abgeschnitten statt nur am Ende
-   mit "…" (z.B. E-Mail-Adressen in den schmalen Team-Karten). */
-.office-team-contact a span {
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
-}

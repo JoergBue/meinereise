@@ -33,12 +33,7 @@
     pin: '<path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.3"/>',
     gift: '<rect x="3" y="8" width="18" height="13" rx="1.5"/><path d="M3 8h18v4H3z"/><path d="M12 8v13"/><path d="M12 8c-1.5-4-5-4-5-1.5S9 8 12 8Zm0 0c1.5-4 5-4 5-1.5S15 8 12 8Z"/>',
     suitcase: '<rect x="2" y="7" width="20" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M2 13h20"/>',
-    externalLink: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/>',
-    close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
-    building: '<rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22v-4h6v4"/><path d="M8 6h1M8 10h1M8 14h1M15 6h1M15 10h1M15 14h1"/>',
-    phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92Z"/>',
-    mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/>',
-    globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/>'
+    externalLink: '<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/>'
   };
 
   function icon(name, size = 20) {
@@ -183,11 +178,9 @@
     travelID: null,
     data: null,
     source: null,
-    officeData: null,
     activeView: "overview",
     activeDay: null,
-    activeOfferFilter: "all",
-    showAlarm: false
+    activeOfferFilter: "all"
   };
 
   function getTravelIDFromURL() {
@@ -210,16 +203,7 @@
     }
 
     try {
-      // /api/office ("Mein Reisebüro") läuft unabhängig von der travelID
-      // (siehe GetOffice.Token/HashKey in server.js) und darf die
-      // eigentlichen Reisedaten nicht blockieren – daher parallel laden und
-      // ein Fehlschlag dort bewusst nicht fatal behandeln (die Bürodaten
-      // fallen serverseitig ohnehin schon auf Demo-Daten zurück, ein
-      // .catch hier fängt nur einen kompletten Netzwerkausfall ab).
-      const [res, officeRes] = await Promise.all([
-        fetch(`/api/reisedaten?travelID=${encodeURIComponent(state.travelID)}`),
-        fetch("/api/office").catch(() => null)
-      ]);
+      const res = await fetch(`/api/reisedaten?travelID=${encodeURIComponent(state.travelID)}`);
       const json = await res.json();
 
       if (!res.ok) {
@@ -229,11 +213,6 @@
       state.data = json.data;
       state.source = json.source;
       applyBrandColor(state.data.brandColor);
-
-      if (officeRes && officeRes.ok) {
-        const officeJson = await officeRes.json();
-        state.officeData = officeJson.data || null;
-      }
 
       const banner = document.getElementById("demoBanner");
       if (json.source === "demo") {
@@ -305,47 +284,6 @@
     return verlaufList().filter((item) => (item.sortDate || "").startsWith(dayKeyStr));
   }
 
-  // An vielen Reisetagen gibt es keinen eigenen ReiseVerlauf-Eintrag (der
-  // Hotelaufenthalt selbst ist nur EIN Eintrag mit checkInDate/checkOutDate,
-  // nicht einer pro Nacht) – dann war der Tag bisher einfach leer. Hier statt
-  // dessen den Hotel-Kontext für diesen Tag ermitteln (checkInDate <= Tag <=
-  // checkOutDate, String-Vergleich funktioniert bei "JJJJMMDD" wie ein
-  // Datumsvergleich).
-  function hotelForDay(dayKeyStr) {
-    return verlaufList().find((item) => item.type === "H"
-      && item.checkInDate && item.checkOutDate
-      && item.checkInDate <= dayKeyStr && dayKeyStr <= item.checkOutDate) || null;
-  }
-
-  // Analog zu hotelForDay: die Kreuzfahrt selbst ist nur EIN ReiseVerlauf-
-  // Eintrag (type "C") mit startDate/endDate über die ganze Fahrt – für
-  // jeden einzelnen Tag dazwischen (nicht nur den Einschiffungstag) wird
-  // hier der Routenplan-Halt des Tages ermittelt (siehe cruiseRouteStops
-  // weiter unten, das den generischen Tages-Hafen liefert).
-  function cruiseForDay(dayKeyStr) {
-    return verlaufList().find((item) => item.type === "C"
-      && item.startDate && item.endDate
-      && item.startDate <= dayKeyStr && dayKeyStr <= item.endDate) || null;
-  }
-
-  function cruiseRouteStopForDay(item, dayKeyStr) {
-    return cruiseRouteStops(item).find((s) => s.date && dayKey(s.date) === dayKeyStr) || null;
-  }
-
-  // Passende Zusatzangebote für einen "freien" Tag – bewusst nur Ausflüge/
-  // Mietwagen (keine Versicherung, kein Wetter etc.), da das die Angebote
-  // sind, die an einem konkreten Reisetag Sinn ergeben. Ausflüge zuerst.
-  // An Seetagen gibt es keine Landausflüge – dort wird "ausfluege" bewusst
-  // ausgeschlossen (excludeAusfluege=true, siehe renderEmptyDay).
-  function suggestedOffersForEmptyDay(excludeAusfluege) {
-    const order = { ausfluege: 0, mietwagen: 1 };
-    return zusatzLeistungList()
-      .filter((o) => (o.headline || o.text) && offerFilter(o) in order)
-      .filter((o) => !(excludeAusfluege && offerFilter(o) === "ausfluege"))
-      .sort((a, b) => order[offerFilter(a)] - order[offerFilter(b)])
-      .slice(0, 2);
-  }
-
   // ---------- View: Übersicht ----------
 
   function renderOverview() {
@@ -370,29 +308,14 @@
 
     const offers = zusatzLeistungList().filter((o) => o.type !== "G007" && (o.headline || o.text)).slice(0, 2);
 
-    // "alarm.text" ist optional – kommt sie in der Antwort und ist nicht
-    // leer, wird die Glocke aktiv (andere Farbe, anklickbar) und zeigt den
-    // Text in einer aufklappbaren Meldung darunter an. Ohne alarm.text
-    // bleibt die Glocke wie bisher rein dekorativ.
-    const alarmText = ((state.data.alarm || {}).text || "").trim();
-
     document.getElementById("view-overview").innerHTML = `
       <div class="greeting-row">
         <div>
           <div class="greeting-eyebrow">Willkommen zurück</div>
           <div class="greeting-name">Deine Reise</div>
         </div>
-        ${alarmText
-          ? `<button type="button" class="avatar avatar-alarm" data-alarm-toggle aria-label="Meldung anzeigen">${icon("bell", 19)}</button>`
-          : `<div class="avatar">${icon("bell", 19)}</div>`}
+        <div class="avatar">${icon("bell", 19)}</div>
       </div>
-
-      ${alarmText ? `
-      <div class="alarm-banner" ${state.showAlarm ? "" : "hidden"}>
-        <div class="alarm-banner-icon">${icon("bell", 15)}</div>
-        <div class="alarm-banner-text">${escapeHtml(alarmText)}</div>
-        <button type="button" class="alarm-banner-close" data-alarm-close aria-label="Schließen">${icon("close", 14)}</button>
-      </div>` : ""}
 
       <div class="hero-card">
         <div class="hero-photo">
@@ -441,28 +364,6 @@
         </div>
       </div>` : ""}
     `;
-
-    // Bewusst per direktem DOM-Toggle statt renderOverview() erneut
-    // aufzurufen: ein Re-Render würde auch die [data-goto]-Buttons dieser
-    // Ansicht neu erzeugen, die aber nur einmal (in renderAll()) gebunden
-    // werden – ihre Klick-Handler wären danach weg.
-    if (alarmText) {
-      const bellBtn = document.querySelector("[data-alarm-toggle]");
-      const banner = document.querySelector(".alarm-banner");
-      const closeBtn = document.querySelector("[data-alarm-close]");
-      if (bellBtn && banner) {
-        bellBtn.addEventListener("click", () => {
-          state.showAlarm = !state.showAlarm;
-          banner.hidden = !state.showAlarm;
-        });
-      }
-      if (closeBtn && banner) {
-        closeBtn.addEventListener("click", () => {
-          state.showAlarm = false;
-          banner.hidden = true;
-        });
-      }
-    }
   }
 
   // ---------- View: Reiseplan ----------
@@ -489,7 +390,7 @@
 
       <div class="timeline">
         ${activeItems.length ? activeItems.map((item, i) => renderTimelineRow(item, i === activeItems.length - 1)).join("")
-          : renderEmptyDay(state.activeDay)}
+          : `<div class="timeline-empty">Für diesen Tag sind keine Programmpunkte hinterlegt.</div>`}
       </div>
     `;
 
@@ -503,84 +404,9 @@
     document.querySelectorAll("[data-verlauf-idx]").forEach((el) => {
       el.addEventListener("click", () => {
         const item = verlaufList()[Number(el.dataset.verlaufIdx)];
-        if (!item) return;
-        if (item.type === "H") openHotelDetail(item);
-        else if (item.type === "C") openCruiseDetail(item);
+        if (item) openHotelDetail(item);
       });
     });
-
-    document.querySelectorAll("#view-plan [data-goto]").forEach((el) => {
-      // Lokal gebunden statt über die globale renderAll()-Bindung, da
-      // renderPlan() bei jedem Tageswechsel neu rendert (siehe oben) und
-      // damit auch neu erzeugte Elemente wie hier die Angebots-Kacheln.
-      el.addEventListener("click", () => showView(el.dataset.goto));
-    });
-  }
-
-  // Tag ohne eigenen ReiseVerlauf-Eintrag: statt der reinen Leermeldung den
-  // Hotel- bzw. Kreuzfahrt-Kontext zeigen (falls der Tag in einen
-  // Hotelaufenthalt oder eine laufende Kreuzfahrt fällt) und 1-2 passende
-  // Zusatzangebote (Ausflüge/Mietwagen) vorschlagen – macht aus der Lücke
-  // eine Gelegenheit statt einer Sackgasse. An Seetagen gibt es keine
-  // Landausflüge, daher wird "Ausflüge" dort aus den Vorschlägen entfernt.
-  function renderEmptyDay(dayKeyStr) {
-    const cruise = cruiseForDay(dayKeyStr);
-    const hotel = cruise ? null : hotelForDay(dayKeyStr);
-    const cruiseStop = cruise ? cruiseRouteStopForDay(cruise, dayKeyStr) : null;
-    const isSeaDay = !!(cruiseStop && cruiseStop.isSeaDay);
-    const offers = suggestedOffersForEmptyDay(isSeaDay);
-
-    let contextCard;
-    if (cruise) {
-      const idx = verlaufList().indexOf(cruise);
-      const times = cruiseStop && !cruiseStop.isSeaDay
-        ? [cruiseStop.arrival ? `an ${cruiseStop.arrival}` : "", cruiseStop.departure ? `ab ${cruiseStop.departure}` : ""].filter(Boolean).join(" · ")
-        : "";
-      const title = cruiseStop
-        ? (cruiseStop.isSeaDay ? "Seetag" : `Im Hafen: ${escapeHtml(cruiseStop.port || "")}`)
-        : escapeHtml(cruise.cruiseShipName || "Kreuzfahrt");
-      const sub = [escapeHtml(cruise.cruiseShipName || ""), times].filter(Boolean).join(" · ") || "Zur Kreuzfahrt";
-      contextCard = `
-        <div class="timeline-card is-clickable" data-verlauf-idx="${idx}">
-          ${icon(isSeaDay ? "boat" : "pin", 17)}
-          <div>
-            <div class="timeline-card-title">${title}</div>
-            <div class="timeline-card-sub">${sub}</div>
-          </div>
-          <span class="doc-chevron">${icon("chevronRight", 16)}</span>
-        </div>`;
-    } else if (hotel) {
-      const idx = verlaufList().indexOf(hotel);
-      contextCard = `
-        <div class="timeline-card is-clickable" data-verlauf-idx="${idx}">
-          ${icon("suitcase", 17)}
-          <div>
-            <div class="timeline-card-title">Du bist im ${escapeHtml(hotel.hotelName || "Hotel")}</div>
-            <div class="timeline-card-sub">${[hotel.roomCategoryName, hotel.mealsCategoryName].filter(Boolean).map(escapeHtml).join(" · ") || "Kein festes Programm an diesem Tag"}</div>
-          </div>
-          <span class="doc-chevron">${icon("chevronRight", 16)}</span>
-        </div>`;
-    } else {
-      contextCard = `<div class="timeline-empty">Für diesen Tag sind keine Programmpunkte hinterlegt.</div>`;
-    }
-
-    return `
-      <div class="day-empty">
-        ${contextCard}
-
-        ${offers.length ? `
-        <div class="day-suggestions">
-          <div class="day-suggestions-title">Passend für heute</div>
-          <div class="mini-cards">
-            ${offers.map((o) => `
-              <div class="mini-card" data-goto="offers">
-                <div class="mini-card-icon">${icon(offerIcon(o), 16)}</div>
-                <div class="mini-card-title">${escapeHtml(o.headline || "")}</div>
-              </div>`).join("")}
-          </div>
-        </div>` : ""}
-      </div>
-    `;
   }
 
   function renderTimelineRow(item, isLast) {
@@ -611,18 +437,7 @@
       time = fmtTime(item.pickupDateTime);
     } else if (item.type === "C") {
       title = `Kreuzfahrt · ${escapeHtml(item.cruiseShipName || "")}`;
-      // Für den Zeilentag (meist der Einschiffungstag) den Routenplan-Halt
-      // dieses Tages zeigen, falls cruiseRouteDet einen liefert – sonst auf
-      // Kabine/Reederei zurückfallen.
-      const stop = cruiseRouteStopForDay(item, item.sortDate);
-      if (stop) {
-        const times = !stop.isSeaDay
-          ? [stop.arrival ? `an ${stop.arrival}` : "", stop.departure ? `ab ${stop.departure}` : ""].filter(Boolean).join(" · ")
-          : "";
-        sub = [escapeHtml(stop.isSeaDay ? "Seetag" : stop.port || ""), times].filter(Boolean).join(" · ");
-      } else {
-        sub = [item.cruiseCabinName, item.cruiseCompany].filter(Boolean).map(escapeHtml).join(" · ") || escapeHtml(item.cruiseRoute || "");
-      }
+      sub = escapeHtml(item.cruiseRoute || "");
     } else if (item.type === "V") {
       title = "Versicherung";
       // discription kann HTML enthalten (z.B. <br>, Links) und wird daher
@@ -633,10 +448,8 @@
       sub = item.discription || escapeHtml(item.text || "");
     }
 
-    // Hotel- und Kreuzfahrt-Einträge führen auf eine eigene Detailseite,
-    // genau wie Hotel – siehe [data-verlauf-idx]-Bindung in renderPlan().
-    const isDetailLink = item.type === "H" || item.type === "C";
-    const verlaufIdx = isDetailLink ? verlaufList().indexOf(item) : -1;
+    const isHotel = item.type === "H";
+    const verlaufIdx = isHotel ? verlaufList().indexOf(item) : -1;
 
     return `
       <div class="timeline-row">
@@ -646,13 +459,13 @@
         </div>
         <div class="timeline-body">
           ${time ? `<div class="timeline-time">${time}</div>` : ""}
-          <div class="timeline-card ${highlight ? "is-highlight" : ""} ${isDetailLink ? "is-clickable" : ""}" ${isDetailLink ? `data-verlauf-idx="${verlaufIdx}"` : ""}>
+          <div class="timeline-card ${highlight ? "is-highlight" : ""} ${isHotel ? "is-clickable" : ""}" ${isHotel ? `data-verlauf-idx="${verlaufIdx}"` : ""}>
             ${icon(meta.icon, 17)}
             <div>
               <div class="timeline-card-title">${title}</div>
               ${sub ? `<div class="timeline-card-sub">${sub}</div>` : ""}
             </div>
-            ${isDetailLink ? `<span class="doc-chevron">${icon("chevronRight", 16)}</span>` : ""}
+            ${isHotel ? `<span class="doc-chevron">${icon("chevronRight", 16)}</span>` : ""}
           </div>
         </div>
       </div>`;
@@ -678,10 +491,8 @@
     return `https://www.openstreetmap.org/?mlat=${la}&mlon=${lo}#map=15/${la}/${lo}`;
   }
 
-  // Generisch für alle Bild-Arrays im {picLink}-Format – wird sowohl für
-  // hotelPics als auch für cruisePics (Kreuzfahrt) verwendet, siehe unten.
-  function mediaPicUrls(pics) {
-    // Die API liefert Bilder als Array von Objekten ({picLink: "..."}),
+  function hotelPicUrls(pics) {
+    // Die API liefert hotelPics als Array von Objekten ({picLink: "..."}),
     // nicht als Array reiner URL-Strings – daher hier robust beide Formen
     // sowie ein paar alternative Feldnamen abfangen.
     if (!Array.isArray(pics)) return [];
@@ -694,16 +505,16 @@
       .filter((url) => typeof url === "string" && url.trim());
   }
 
-  // Der Abruf jedes einzelnen Bilds (Hotel wie Kreuzfahrt) ist kostenpflichtig
-  // – daher werden beim Öffnen der Seite maximal 3 Bilder geladen (1 Hero +
-  // 2 in der Strip-Leiste). Weitere Bilder werden nur als Zähler-Kachel
-  // "+N weitere" angezeigt und erst per Klick nachgeladen (kein <img src>
-  // vorher, damit der Browser sie nicht automatisch abruft).
-  const GALLERY_INITIAL_COUNT = 3;
+  // Der Abruf jedes einzelnen Hotelbilds ist kostenpflichtig – daher werden
+  // beim Öffnen der Seite maximal 3 Bilder geladen (1 Hero + 2 in der
+  // Strip-Leiste). Weitere Bilder werden nur als Zähler-Kachel "+N weitere"
+  // angezeigt und erst per Klick nachgeladen (kein <img src> vorher, damit
+  // der Browser sie nicht automatisch abruft).
+  const HOTEL_GALLERY_INITIAL_COUNT = 3;
 
-  function renderMediaGallery(pics) {
-    const visible = pics.slice(0, GALLERY_INITIAL_COUNT);
-    const remaining = pics.slice(GALLERY_INITIAL_COUNT);
+  function renderHotelGallery(pics) {
+    const visible = pics.slice(0, HOTEL_GALLERY_INITIAL_COUNT);
+    const remaining = pics.slice(HOTEL_GALLERY_INITIAL_COUNT);
     const [heroPic, ...stripPics] = visible;
     return `
       <div class="hotel-gallery-hero">
@@ -717,7 +528,7 @@
     `;
   }
 
-  function loadRemainingMediaPics(container, remaining) {
+  function loadRemainingHotelPics(container, remaining) {
     const moreBtn = container.querySelector(".hotel-gallery-more");
     const stripEl = container.querySelector(".hotel-gallery-strip");
     if (!moreBtn || !stripEl) return;
@@ -749,7 +560,7 @@
       return;
     }
 
-    const pics = mediaPicUrls(h.hotelPics);
+    const pics = hotelPicUrls(h.hotelPics);
     const mapEmbed = hotelMapEmbedUrl(h.locationLatitude, h.locationLongitude);
     const mapLink = hotelMapLinkUrl(h.locationLatitude, h.locationLongitude);
     const subline = [h.roomCategoryName, h.mealsCategoryName].filter(Boolean).map(escapeHtml).join(" · ");
@@ -758,7 +569,7 @@
       <button class="back-link" data-back="plan">${icon("chevronLeft", 16)} Zurück zum Reiseplan</button>
 
       <div class="hotel-detail">
-        ${pics.length ? renderMediaGallery(pics) : ""}
+        ${pics.length ? renderHotelGallery(pics) : ""}
 
         <div>
           <div class="hotel-detail-header">
@@ -778,138 +589,12 @@
       </div>
     `;
 
-    container.querySelectorAll("[data-back]").forEach((btn) => {
+    document.querySelectorAll("[data-back]").forEach((btn) => {
       btn.addEventListener("click", () => showView(btn.dataset.back));
     });
 
-    if (pics.length > GALLERY_INITIAL_COUNT) {
-      loadRemainingMediaPics(container, pics.slice(GALLERY_INITIAL_COUNT));
-    }
-  }
-
-  // ---------- View: Kreuzfahrt-Details ----------
-  //
-  // Eigene Unterseite, im Prinzip wie die Hotel-Details: cruiseDiscription
-  // (HTML, unescaped – gleiche Begründung wie bei Hotel-discription),
-  // cruisePics[] als Galerie (gleiches {picLink}-Format und gleiche
-  // Kostenbremse wie bei hotelPics: erst 3 Bilder, Rest per Klick).
-  // Nur per Klick auf einen Kreuzfahrt-Eintrag im Reiseplan erreichbar,
-  // kein eigener Bottom-Nav-Eintrag.
-
-  function openCruiseDetail(item) {
-    state.selectedCruise = item;
-    renderCruiseDetail();
-    showView("cruise");
-  }
-
-  // cruiseRouteDet liefert pro Hafen ein "day" (Differenz in Tagen zum
-  // Abreisedatum/startDate, nicht zum sortDate) sowie arrival/departure als
-  // Uhrzeit ohne führende Nullen bzw. Trennzeichen (z.B. "700" = 07:00,
-  // "1800" = 18:00) – "-1" bedeutet "keine Angabe" (z.B. keine Ankunft am
-  // Abreisetag, keine Abfahrt am letzten Tag). Ein Hafen mit Namen "Seetag"
-  // ist kein Anlaufhafen, sondern ein Tag auf See.
-  function fmtCruiseClock(v) {
-    if (v === undefined || v === null) return "";
-    const s = String(v).trim();
-    if (!s || s === "-1") return "";
-    const n = s.padStart(4, "0");
-    return `${n.slice(0, 2)}:${n.slice(2, 4)}`;
-  }
-
-  function cruiseRouteStops(item) {
-    const start = parseYYYYMMDD(item.startDate || item.sortDate);
-    const det = Array.isArray(item.cruiseRouteDet) ? item.cruiseRouteDet : [];
-    return det
-      .slice()
-      .sort((a, b) => (parseInt(a.day, 10) || 0) - (parseInt(b.day, 10) || 0))
-      .map((stop) => {
-        const dayOffset = parseInt(stop.day, 10) || 0;
-        let date = null;
-        if (start) {
-          date = new Date(start);
-          date.setDate(date.getDate() + dayOffset);
-        }
-        const port = (stop.port || "").trim();
-        return {
-          date,
-          port,
-          isSeaDay: port.toLowerCase() === "seetag",
-          arrival: fmtCruiseClock(stop.arrival),
-          departure: fmtCruiseClock(stop.departure)
-        };
-      });
-  }
-
-  function renderCruiseRoute(item) {
-    const stops = cruiseRouteStops(item);
-    if (!stops.length) return "";
-
-    return `
-      <div class="cruise-route">
-        <div class="day-suggestions-title">Routenplan</div>
-        <div class="timeline">
-          ${stops.map((s, i) => {
-            const times = s.isSeaDay ? "" : [s.arrival ? `an ${s.arrival}` : "", s.departure ? `ab ${s.departure}` : ""].filter(Boolean).join(" · ");
-            return `
-            <div class="timeline-row">
-              <div class="timeline-rail">
-                <div class="timeline-dot"></div>
-                ${i === stops.length - 1 ? "" : '<div class="timeline-line"></div>'}
-              </div>
-              <div class="timeline-body">
-                ${s.date ? `<div class="timeline-time">${DOW[s.date.getDay()]} ${fmtDate(dayKey(s.date))}</div>` : ""}
-                <div class="timeline-card">
-                  ${icon(s.isSeaDay ? "boat" : "pin", 17)}
-                  <div>
-                    <div class="timeline-card-title">${escapeHtml(s.isSeaDay ? "Seetag" : s.port || "Hafen")}</div>
-                    ${times ? `<div class="timeline-card-sub">${escapeHtml(times)}</div>` : ""}
-                  </div>
-                </div>
-              </div>
-            </div>`;
-          }).join("")}
-        </div>
-      </div>
-    `;
-  }
-
-  function renderCruiseDetail() {
-    const c = state.selectedCruise;
-    const container = document.getElementById("view-cruise");
-
-    if (!c) {
-      container.innerHTML = `<div class="error-box">Keine Kreuzfahrt ausgewählt.</div>`;
-      return;
-    }
-
-    const pics = mediaPicUrls(c.cruisePics);
-    const subline = [c.cruiseCabinName, c.cruiseCompany].filter(Boolean).map(escapeHtml).join(" · ");
-
-    container.innerHTML = `
-      <button class="back-link" data-back="plan">${icon("chevronLeft", 16)} Zurück zum Reiseplan</button>
-
-      <div class="hotel-detail">
-        ${pics.length ? renderMediaGallery(pics) : ""}
-
-        <div>
-          <div class="hotel-detail-header">
-            <div class="greeting-name" style="font-size:20px;">${escapeHtml(c.cruiseShipName || "Kreuzfahrt")}</div>
-          </div>
-          ${subline ? `<div class="hero-sub">${subline}</div>` : ""}
-        </div>
-
-        ${c.cruiseDiscription ? `<div class="hotel-description">${c.cruiseDiscription}</div>` : ""}
-
-        ${renderCruiseRoute(c)}
-      </div>
-    `;
-
-    container.querySelectorAll("[data-back]").forEach((btn) => {
-      btn.addEventListener("click", () => showView(btn.dataset.back));
-    });
-
-    if (pics.length > GALLERY_INITIAL_COUNT) {
-      loadRemainingMediaPics(container, pics.slice(GALLERY_INITIAL_COUNT));
+    if (pics.length > HOTEL_GALLERY_INITIAL_COUNT) {
+      loadRemainingHotelPics(container, pics.slice(HOTEL_GALLERY_INITIAL_COUNT));
     }
   }
 
@@ -1182,104 +867,6 @@
     }
   }
 
-  // ---------- View: Mein Reisebüro ----------
-  //
-  // Kommt über GetOffice (server.js /api/office), unabhängig von den
-  // eigentlichen Reisedaten – state.officeData kann daher null sein (z.B.
-  // wenn der Aufruf am Netzwerk gescheitert ist), das wird hier abgefangen.
-
-  const OFFICE_DOW_LABELS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
-
-  // Day1..Day7 werden als Mo…So angenommen (passt zu den Beispieldaten:
-  // Day2 komplett leer = Ruhetag Dienstag, Day6 kürzere Zeiten = Samstag,
-  // Day7 leer = Sonntag geschlossen). Jeweils bis zu zwei Zeitfenster
-  // (…From1/To1, …From2/To2, z.B. für eine Mittagspause).
-  function officeOpeningHours(myOffice) {
-    const rows = [];
-    for (let i = 1; i <= 7; i++) {
-      const from1 = myOffice[`Day${i}From1`], to1 = myOffice[`Day${i}To1`];
-      const from2 = myOffice[`Day${i}From2`], to2 = myOffice[`Day${i}To2`];
-      const ranges = [];
-      if (from1 && to1) ranges.push(`${from1}–${to1}`);
-      if (from2 && to2) ranges.push(`${from2}–${to2}`);
-      rows.push({ label: OFFICE_DOW_LABELS[i - 1], hours: ranges.join(", ") || "geschlossen" });
-    }
-    return rows;
-  }
-
-  function renderOffice() {
-    const container = document.getElementById("view-office");
-    const office = state.officeData;
-    const myOffice = office && office.MyOffice;
-
-    if (!myOffice) {
-      container.innerHTML = `<div class="error-box">Reisebüro-Daten konnten nicht geladen werden.</div>`;
-      return;
-    }
-
-    const berater = (office.MyBerater || []).slice().sort((a, b) => (a.sort || 0) - (b.sort || 0));
-    const hours = officeOpeningHours(myOffice);
-
-    const contactLinks = [];
-    if (myOffice.phone) {
-      contactLinks.push(`<a class="offer-link" href="tel:${escapeHtml(myOffice.phone.replace(/\s+/g, ""))}">${icon("phone", 13)} ${escapeHtml(myOffice.phone)}</a>`);
-    }
-    if (myOffice.mail) {
-      contactLinks.push(`<a class="offer-link" href="mailto:${escapeHtml(myOffice.mail)}">${icon("mail", 13)} ${escapeHtml(myOffice.mail)}</a>`);
-    }
-    const wwwUrl = offerLinkUrl(myOffice.www);
-    if (wwwUrl) {
-      contactLinks.push(`<a class="offer-link" href="${escapeHtml(wwwUrl)}" target="_blank" rel="noopener noreferrer">${icon("globe", 13)} Website ${icon("externalLink", 11)}</a>`);
-    }
-
-    container.innerHTML = `
-      <div>
-        <div class="greeting-name" style="font-size:22px;">${escapeHtml(myOffice.titleOffice || "Mein Reisebüro")}</div>
-        <div class="hero-sub">${escapeHtml(myOffice.name || "")}</div>
-      </div>
-
-      <div class="offer-card">
-        <div class="offer-icon">${icon("building", 22)}</div>
-        <div style="flex:1;min-width:0;">
-          ${myOffice.adresse ? `<div class="hotel-description">${myOffice.adresse}</div>` : ""}
-          ${contactLinks.length ? `<div class="office-contact-row">${contactLinks.join("")}</div>` : ""}
-        </div>
-      </div>
-
-      ${hours.length ? `
-      <div class="day-suggestions">
-        <div class="day-suggestions-title">Öffnungszeiten</div>
-        <div class="office-hours">
-          ${hours.map((h) => `
-            <div class="office-hours-row">
-              <span>${h.label}</span>
-              <span>${h.hours}</span>
-            </div>`).join("")}
-        </div>
-        ${myOffice.openingadd ? `<div class="hero-sub">${escapeHtml(myOffice.openingadd)}</div>` : ""}
-      </div>` : ""}
-
-      ${myOffice.teamtext ? `<div class="hotel-description">${myOffice.teamtext}</div>` : ""}
-
-      ${berater.length ? `
-      <div class="day-suggestions">
-        <div class="day-suggestions-title">Ihre Ansprechpartner</div>
-        <div class="office-team-grid">
-          ${berater.map((b) => `
-            <div class="office-team-card">
-              ${b.image ? `<img class="office-team-photo" src="${escapeHtml(b.image)}" alt="" loading="lazy" onerror="this.remove()">` : ""}
-              <div class="office-team-name">${escapeHtml(b.name || "")}</div>
-              ${b.function ? `<div class="office-team-function">${escapeHtml(b.function)}</div>` : ""}
-              <div class="office-team-contact">
-                ${b.phone ? `<a href="tel:${escapeHtml(b.phone.replace(/\s+/g, ""))}">${icon("phone", 12)}<span>${escapeHtml(b.phone)}</span></a>` : ""}
-                ${b.mail ? `<a href="mailto:${escapeHtml(b.mail)}">${icon("mail", 12)}<span>${escapeHtml(b.mail)}</span></a>` : ""}
-              </div>
-            </div>`).join("")}
-        </div>
-      </div>` : ""}
-    `;
-  }
-
   // ---------- Navigation ----------
 
   function renderAll() {
@@ -1287,7 +874,6 @@
     renderPlan();
     renderOffers();
     renderDocs();
-    renderOffice();
     showView(state.activeView);
 
     document.querySelectorAll("[data-goto]").forEach((el) => {

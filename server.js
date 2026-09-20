@@ -12,9 +12,21 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { demoReiseData } = require("./demoData");
+const { demoReiseData, demoOfficeData } = require("./demoData");
 
 loadDotEnv(path.join(__dirname, ".env"));
+
+// Produktions-Absicherung: ein einzelner unerwarteter Fehler soll den
+// Prozess nicht abschießen (z.B. bei Node-Hosting mit Auto-Restart, wo ein
+// Absturz kurzzeitige Downtime bedeutet). Alle Routen fangen ihre eigenen
+// Fehler bereits ab (siehe handleReiseData/handleDokument); das hier ist
+// nur ein zusätzliches Sicherheitsnetz.
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err);
+});
+process.on("unhandledRejection", (err) => {
+  console.error("[unhandledRejection]", err);
+});
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -27,10 +39,19 @@ const BOSYS_TERMINAL = process.env.BOSYS_TERMINAL || "1";
 const BOSYS_TOKEN = process.env.BOSYS_TOKEN || "";
 const BOSYS_SESSION_ID = process.env.BOSYS_SESSION_ID || "";
 
+// GetOffice.Token – laut Doku wird hier der "HashKey" übergeben, nicht die
+// travelID/sessionID. Bis der Punkt "Aufruf ohne Parameter" (siehe TODO.md)
+// umgesetzt ist, kommt der HashKey fest aus .env statt aus einem konkreten
+// Reise-Kontext – GetOffice hängt ja ohnehin nicht an einer travelID.
+const BOSYS_OFFICE_TOKEN = process.env.BOSYS_OFFICE_TOKEN || "";
+
 // Nur URL + sessionID sind zwingend, um einen Live-Aufruf zu versuchen –
 // Terminal/Source haben sinnvolle Defaults, und manche Gateways (z.B.
 // Test-/Sandbox-Umgebungen) verlangen (noch) keinen Token.
 const isLiveConfigured = Boolean(BOSYS_API_URL && BOSYS_SESSION_ID);
+// GetOffice braucht keine sessionID (siehe Session.sessionID in der
+// Beispiel-Antwort, bleibt leer) – nur URL + der eigene Office-Token.
+const isOfficeLiveConfigured = Boolean(BOSYS_API_URL && BOSYS_OFFICE_TOKEN);
 
 // GetDokument (Dokument-Abruf) braucht zusätzlich zur travelID eine
 // sessionID + officeID – beide liefert GetReiseData in seiner Antwort mit.
@@ -67,6 +88,11 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === "/api/dokument") {
     await handleDokument(url, res);
+    return;
+  }
+
+  if (url.pathname === "/api/office") {
+    await handleOffice(res);
     return;
   }
 
@@ -219,6 +245,70 @@ async function handleDokument(url, res) {
   }
 }
 
+// "Mein Reisebüro" (siehe TODO.md) – GetOffice hängt nicht an einer
+// travelID, sondern läuft über den fest konfigurierten BOSYS_OFFICE_TOKEN
+// (den "HashKey"). Gleiches Fallback-Muster wie handleReiseData: ohne
+// Live-Konfiguration bzw. bei einem fehlgeschlagenen Aufruf werden
+// Demo-Daten ausgeliefert, statt die App abstürzen zu lassen.
+async function handleOffice(res) {
+  if (!isOfficeLiveConfigured) {
+    sendJson(res, 200, {
+      source: "demo",
+      hinweis: "BOSYS_OFFICE_TOKEN ist nicht in .env gesetzt – es werden Demo-Reisebüro-Daten angezeigt.",
+      data: demoOfficeData().bns_response.GetOffice
+    });
+    return;
+  }
+
+  const bnsRequest = {
+    bns_request: {
+      Header: {
+        Version: "1.0",
+        Source: BOSYS_SOURCE,
+        BOSYSTerminal: BOSYS_TERMINAL,
+        Token: BOSYS_TOKEN,
+        Function: "GetOffice"
+      },
+      GetOffice: {
+        Token: BOSYS_OFFICE_TOKEN
+      }
+    }
+  };
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(BOSYS_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bnsRequest),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      throw new Error(`BOSYS API antwortete mit Status ${response.status}`);
+    }
+
+    const json = await response.json();
+    const officeData = json && json.bns_response && json.bns_response.GetOffice;
+
+    if (!officeData) {
+      throw new Error("Antwort enthielt kein bns_response.GetOffice");
+    }
+
+    sendJson(res, 200, { source: "live", data: officeData });
+  } catch (err) {
+    console.error("[GetOffice] Live-Aufruf fehlgeschlagen, liefere Demo-Daten:", err.message);
+    sendJson(res, 200, {
+      source: "demo",
+      hinweis: `Live-Aufruf fehlgeschlagen (${err.message}) – es werden Demo-Reisebüro-Daten angezeigt.`,
+      data: demoOfficeData().bns_response.GetOffice
+    });
+  }
+}
+
 function serveStatic(pathname, res) {
   let filePath = pathname === "/" ? "/index.html" : pathname;
   // Path-Traversal verhindern und auf PUBLIC_DIR beschränken
@@ -274,4 +364,7 @@ server.listen(PORT, () => {
   if (isLiveConfigured && !BOSYS_TOKEN) {
     console.log("Hinweis: BOSYS_TOKEN ist leer – wird als leerer String im Header.Token mitgeschickt.");
   }
+  console.log(isOfficeLiveConfigured
+    ? "Mein Reisebüro (GetOffice): Live-Anbindung aktiv."
+    : "Mein Reisebüro (GetOffice): BOSYS_OFFICE_TOKEN nicht gesetzt – Demo-Daten aktiv.");
 });
