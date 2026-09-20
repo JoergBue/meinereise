@@ -86,7 +86,7 @@ function demoReiseData(travelID) {
             type: "H",
             sortDate: "20261003",
             checkInDate: "20261003",
-            checkOutDate: "20261011",
+            checkOutDate: "20261008",
             hotelStars: "5",
             hotelName: "Grand Hotel Taormina",
             hotelPics: [
@@ -132,6 +132,16 @@ function demoReiseData(travelID) {
               { picLink: "https://i.giatamedia.com/s.php?uid=204387&source=xml&size=640&cid=3959&iid=134567192", type: "Route" },
               { picLink: "https://i.giatamedia.com/s.php?uid=204387&source=xml&size=640&cid=3959&iid=134567193", type: "Route" }
             ]
+          },
+          {
+            // Rudimentärer Leistungstyp – bisher nur carCategoryClass +
+            // pickupDateTime/returnDateTime (14-stellig "JJJJMMDDHHMMSS")
+            // geliefert, siehe app.js renderTimelineRow/rentalCarForDay.
+            type: "M",
+            sortDate: "20261008",
+            carCategoryClass: "Mietwagen Fiat 500X oder ähnlich",
+            pickupDateTime: "20261008120000",
+            returnDateTime: "20261011090000"
           },
           {
             type: "F",

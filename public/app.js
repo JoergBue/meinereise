@@ -332,16 +332,29 @@
     return cruiseRouteStops(item).find((s) => s.date && dayKey(s.date) === dayKeyStr) || null;
   }
 
+  // Analog zu hotelForDay/cruiseForDay: ein gebuchter Mietwagen ist auch nur
+  // EIN ReiseVerlauf-Eintrag (type "M") mit pickupDateTime/returnDateTime
+  // über den ganzen Mietzeitraum. Die Zeiten kommen als "JJJJMMDDHHMMSS"
+  // (14-stellig) – für den Tagesvergleich reichen die ersten 8 Stellen.
+  function rentalCarForDay(dayKeyStr) {
+    return verlaufList().find((item) => item.type === "M"
+      && item.pickupDateTime && item.returnDateTime
+      && item.pickupDateTime.slice(0, 8) <= dayKeyStr && dayKeyStr <= item.returnDateTime.slice(0, 8)) || null;
+  }
+
   // Passende Zusatzangebote für einen "freien" Tag – bewusst nur Ausflüge/
   // Mietwagen (keine Versicherung, kein Wetter etc.), da das die Angebote
   // sind, die an einem konkreten Reisetag Sinn ergeben. Ausflüge zuerst.
   // An Seetagen gibt es keine Landausflüge – dort wird "ausfluege" bewusst
-  // ausgeschlossen (excludeAusfluege=true, siehe renderEmptyDay).
-  function suggestedOffersForEmptyDay(excludeAusfluege) {
+  // ausgeschlossen (excludeAusfluege=true); an Tagen mit bereits gebuchtem
+  // Mietwagen ergibt der Vorschlag "Mietwagen buchen" keinen Sinn mehr
+  // (excludeMietwagen=true) – siehe renderEmptyDay.
+  function suggestedOffersForEmptyDay(excludeAusfluege, excludeMietwagen) {
     const order = { ausfluege: 0, mietwagen: 1 };
     return zusatzLeistungList()
       .filter((o) => (o.headline || o.text) && offerFilter(o) in order)
       .filter((o) => !(excludeAusfluege && offerFilter(o) === "ausfluege"))
+      .filter((o) => !(excludeMietwagen && offerFilter(o) === "mietwagen"))
       .sort((a, b) => order[offerFilter(a)] - order[offerFilter(b)])
       .slice(0, 2);
   }
@@ -526,9 +539,10 @@
   function renderEmptyDay(dayKeyStr) {
     const cruise = cruiseForDay(dayKeyStr);
     const hotel = cruise ? null : hotelForDay(dayKeyStr);
+    const rentalCar = rentalCarForDay(dayKeyStr);
     const cruiseStop = cruise ? cruiseRouteStopForDay(cruise, dayKeyStr) : null;
     const isSeaDay = !!(cruiseStop && cruiseStop.isSeaDay);
-    const offers = suggestedOffersForEmptyDay(isSeaDay);
+    const offers = suggestedOffersForEmptyDay(isSeaDay, !!rentalCar);
 
     let contextCard;
     if (cruise) {
@@ -559,6 +573,18 @@
             <div class="timeline-card-sub">${[hotel.roomCategoryName, hotel.mealsCategoryName].filter(Boolean).map(escapeHtml).join(" · ") || "Kein festes Programm an diesem Tag"}</div>
           </div>
           <span class="doc-chevron">${icon("chevronRight", 16)}</span>
+        </div>`;
+    } else if (rentalCar) {
+      // Kein eigener [data-verlauf-idx]/Detailseite – die Daten sind bisher
+      // zu rudimentär (nur carCategoryClass + Zeiten) für eine eigene
+      // Unterseite wie bei Hotel/Kreuzfahrt.
+      contextCard = `
+        <div class="timeline-card">
+          ${icon("car", 17)}
+          <div>
+            <div class="timeline-card-title">Mietwagen unterwegs</div>
+            <div class="timeline-card-sub">${escapeHtml(rentalCar.carCategoryClass || "")}</div>
+          </div>
         </div>`;
     } else {
       contextCard = `<div class="timeline-empty">Für diesen Tag sind keine Programmpunkte hinterlegt.</div>`;
@@ -606,8 +632,16 @@
       sub = escapeHtml(item.text || "");
       time = "";
     } else if (item.type === "M") {
-      title = `Mietwagen · ${escapeHtml(item.carOperator || "")}`;
-      sub = [item.pickupStation, item.returnStation].filter(Boolean).map(escapeHtml).join(" → ");
+      // carCategoryClass enthält bereits "Mietwagen …" (z.B. "Mietwagen
+      // Mercedes Benz A-Klasse") – daher nicht nochmal "Mietwagen ·"
+      // voranstellen. pickupDateTime/returnDateTime kommen als
+      // "JJJJMMDDHHMMSS" (14-stellig, die ersten 8 Stellen sind das Datum).
+      title = escapeHtml(item.carCategoryClass || item.carOperator || "Mietwagen");
+      const pickupDate = (item.pickupDateTime || "").slice(0, 8);
+      const returnDate = (item.returnDateTime || "").slice(0, 8);
+      const range = [pickupDate, returnDate].filter(Boolean).map(fmtDate).join(" – ");
+      const stations = [item.pickupStation, item.returnStation].filter(Boolean).map(escapeHtml).join(" → ");
+      sub = [range, stations].filter(Boolean).join(" · ");
       time = fmtTime(item.pickupDateTime);
     } else if (item.type === "C") {
       title = `Kreuzfahrt · ${escapeHtml(item.cruiseShipName || "")}`;

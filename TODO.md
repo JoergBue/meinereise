@@ -52,7 +52,14 @@ Telefonnummer/E-Mail sind jetzt über den Bereich "Mein Reisebüro"
 ## 4. Weitere Leistungsarten im Reiseplan
 
 Bisher mit eigener Detail-Darstellung: Flug (F), Hotel (H), Kreuzfahrt
-(C). Für folgende Leistungsarten fehlt noch eine passende, auf echten
+(C), Mietwagen (M) ✅. Mietwagen ist bewusst noch rudimentär (nur
+`carCategoryClass`, `pickupDateTime`, `returnDateTime` – keine eigene
+Detailseite, nur Timeline-Zeile + "Mietwagen unterwegs"-Kontextkarte an
+Tagen dazwischen + Ausschluss der Mietwagen-Angebotsvorschläge an
+diesen Tagen). Falls die API später mehr Felder liefert (Stationen,
+Preis, Anbieter etc.), kann das erweitert werden.
+
+Für folgende Leistungsarten fehlt noch eine passende, auf echten
 Felddaten basierende Darstellung (aktuell nur generischer Fallback bzw.
 teilweise nur Basis-Text):
 - Parkplatz
