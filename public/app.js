@@ -1448,6 +1448,92 @@
     `;
   }
 
+  // ---------- View: Reisepreis ----------
+  //
+  // ReiseLeistung enthält pro Buchungsposition (Hauptreise + einzeln
+  // gebuchte Zusatzleistungen wie Parkplatz/Mietwagen) die Preis- und
+  // Zahlungsinformationen – unabhängig vom Reiseplan (ReiseVerlauf), das
+  // ist eine eigene, flache Liste ohne Bezug zu type/sortDate. price/
+  // RePreis kommen wie travelPrice als Ganzzahl in Eurocent (siehe
+  // fmtPriceFromCents). RePreis "0" bedeutet: der Betrag ist direkt beim
+  // Veranstalter fällig, nicht über das Reisebüro (siehe
+  // leistungPaymentNote()) – das entscheidet auch die Summenbildung unten.
+
+  const LEISTUNG_STATUS_LABELS = { OF: "Offen", BE: "Bestätigt", OP: "Option", ST: "Storniert" };
+
+  function reiseLeistungList() {
+    return (state.data.ReiseLeistung || []).filter((item) => item && (item.text || item.bookingNo));
+  }
+
+  // Buchungsnummer bis auf die letzten 4 Stellen maskieren
+  // (z.B. "0000029192" -> "*******9192").
+  function maskBookingNo(bookingNo) {
+    const s = String(bookingNo || "");
+    if (s.length <= 4) return s;
+    return "*".repeat(s.length - 4) + s.slice(-4);
+  }
+
+  function leistungPaymentNote(item, currency) {
+    if (Number(item.RePreis)) {
+      return `An Reisebüro zu zahlen: ${fmtPriceFromCents(item.RePreis, currency)}`;
+    }
+    return `Direkt an Veranstalter${item.touroperatorName ? ` (${escapeHtml(item.touroperatorName)})` : ""} zu zahlen`;
+  }
+
+  function renderPrice() {
+    const currency = (state.data.ReiseGrund || {}).travelCurrency;
+    const items = reiseLeistungList();
+
+    // Summen: Gesamtpreis über alle Positionen, aufgeteilt danach, ob der
+    // Betrag ans Reisebüro geht (RePreis != 0, dann zählt RePreis) oder
+    // direkt an den Veranstalter (RePreis == 0, dann zählt der volle price).
+    const total = items.reduce((sum, i) => sum + (Number(i.price) || 0), 0);
+    const toOffice = items.reduce((sum, i) => sum + (Number(i.RePreis) ? Number(i.RePreis) : 0), 0);
+    const toOperator = items.reduce((sum, i) => sum + (Number(i.RePreis) ? 0 : (Number(i.price) || 0)), 0);
+
+    document.getElementById("view-price").innerHTML = `
+      <div>
+        <div class="greeting-name" style="font-size:22px;">Reisepreis</div>
+        <div class="hero-sub">${items.length} Buchungsposition${items.length === 1 ? "" : "en"}</div>
+      </div>
+
+      ${items.length ? `
+      <div class="price-list">
+        ${items.map((item) => `
+          <div class="price-row">
+            <div class="price-row-top">
+              <div>
+                <div class="price-row-operator">${escapeHtml(item.touroperatorName || "")}</div>
+                <div class="price-row-text">${escapeHtml(item.text || "")}</div>
+              </div>
+              <div class="price-status-badge price-status-${escapeHtml(item.status || "")}">${escapeHtml(LEISTUNG_STATUS_LABELS[item.status] || item.status || "")}</div>
+            </div>
+            <div class="price-row-meta">${escapeHtml(maskBookingNo(item.bookingNo))} · ${[fmtDate(item.startDate), fmtDate(item.endEnd)].filter(Boolean).join(" – ")}</div>
+            <div class="price-row-bottom">
+              <div class="price-row-note">${leistungPaymentNote(item, currency)}</div>
+              <div class="price-row-amount">${fmtPriceFromCents(item.price, currency)}</div>
+            </div>
+          </div>`).join("")}
+      </div>
+
+      <div class="price-summary">
+        <div class="price-summary-title">Zusammenfassung</div>
+        <div class="price-summary-row">
+          <span>An Reisebüro zu zahlen</span>
+          <span>${fmtPriceFromCents(toOffice, currency)}</span>
+        </div>
+        <div class="price-summary-row">
+          <span>Direkt an Veranstalter zu zahlen</span>
+          <span>${fmtPriceFromCents(toOperator, currency)}</span>
+        </div>
+        <div class="price-summary-row is-total">
+          <span>Gesamtsumme</span>
+          <span>${fmtPriceFromCents(total, currency)}</span>
+        </div>
+      </div>` : `<div class="error-box">Keine Preisdaten vorhanden.</div>`}
+    `;
+  }
+
   // ---------- Navigation ----------
 
   function renderAll() {
@@ -1456,6 +1542,7 @@
     renderOffers();
     renderDocs();
     renderOffice();
+    renderPrice();
     showView(state.activeView);
 
     document.querySelectorAll("[data-goto]").forEach((el) => {

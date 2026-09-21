@@ -43,18 +43,52 @@ function demoReiseData(travelID) {
           travelGiataID: "",
           travelers: "2"
         },
+        // Reisepreis-Übersicht (siehe view-price/renderPrice in app.js). Preis-
+        // Felder (price/RePreis) sind wie travelPrice Ganzzahlen in Eurocent;
+        // priceF/priceF1 sind bereits fertig formatierte Varianten (priceF im
+        // deutschen "1.234,56"-Format, priceF1 mit Punkt als Dezimaltrennzeichen
+        // – bisher unbenutzt in der App, priceF wird angezeigt). RePreis "0"
+        // bedeutet: diese Leistung wird direkt beim Veranstalter bezahlt, nicht
+        // über das Reisebüro (siehe fmtLeistungPaymentNote()).
         ReiseLeistung: [
           {
-            BuchNr: "12957790",
-            DatumVon: "20261003",
-            DatumBis: "20261011",
-            Leistung: "Sizilien Rundreise",
-            Preis: "245000",
-            RePreis: "0",
-            Status: "BU",
-            Veran: "ALL",
+            bookingNo: "0000029192",
+            startDate: "20261003",
+            endEnd: "20261011",
+            text: "Sizilien Rundreise",
+            price: "245000",
+            priceF: "2.450,00",
+            priceF1: "2450.00",
+            RePreis: "245000",
+            status: "BE",
             touroperatorCode: "ALL",
             touroperatorName: "alltours"
+          },
+          {
+            bookingNo: "0000029193",
+            startDate: "20261003",
+            endEnd: "20261011",
+            text: "Parkplatz Frankfurt Flughafen",
+            price: "2500",
+            priceF: "25,00",
+            priceF1: "25.00",
+            RePreis: "0",
+            status: "BE",
+            touroperatorCode: "HEX",
+            touroperatorName: "HEX"
+          },
+          {
+            bookingNo: "0000029194",
+            startDate: "20261008",
+            endEnd: "20261011",
+            text: "Mietwagen Fiat 500X oder ähnlich",
+            price: "54400",
+            priceF: "544,00",
+            priceF1: "544.00",
+            RePreis: "0",
+            status: "BE",
+            touroperatorCode: "SCAR",
+            touroperatorName: "SCAR"
           }
         ],
         ReiseVerlauf: [
