@@ -40,6 +40,7 @@
     mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/>',
     globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/>',
     utensils: '<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
+    messageCircle: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
     star: '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>'
   };
 
@@ -1373,6 +1374,36 @@
     return rows;
   }
 
+  // WhatsApp-Kontakt (siehe TODO.md Punkt 3) – bewusst die einfachste
+  // Variante: ein wa.me-Link mit vorbefüllter Nachricht statt eines eigenen
+  // Kontaktformulars mit serverseitigem Mailversand (kein SMTP/E-Mail-API-
+  // Zugang nötig, funktioniert sofort). GetOffice liefert kein eigenes
+  // WhatsApp-Feld, daher wird die normale Telefonnummer (MyOffice.phone
+  // bzw. MyBerater[].phone) verwendet.
+  function normalizeWhatsAppNumber(phone) {
+    if (!phone) return "";
+    let digits = String(phone).replace(/[^\d+]/g, "");
+    if (digits.startsWith("+")) digits = digits.slice(1);
+    else if (digits.startsWith("00")) digits = digits.slice(2);
+    else if (digits.startsWith("0")) digits = `49${digits.slice(1)}`; // deutsche Vorwahl 0 -> Landesvorwahl 49
+    return digits;
+  }
+
+  function whatsappUrl(phone, message) {
+    const digits = normalizeWhatsAppNumber(phone);
+    if (!digits) return "";
+    return `https://wa.me/${digits}${message ? `?text=${encodeURIComponent(message)}` : ""}`;
+  }
+
+  // Vorbefüllte Nachricht mit Reisekontext, damit das Büro sofort weiß,
+  // um welche Reise es geht, ohne dass der Gast das selbst tippen muss.
+  function whatsappTravelMessage() {
+    const grund = state.data.ReiseGrund || {};
+    const title = grund.travelTitle ? ` "${grund.travelTitle}"` : "";
+    const ref = grund.travelID || state.travelID || "";
+    return `Hallo, ich habe eine Frage zu meiner Reise${title}${ref ? ` (Reise-Nr. ${ref})` : ""}.`;
+  }
+
   function renderOffice() {
     const container = document.getElementById("view-office");
     const office = state.officeData;
@@ -1398,11 +1429,18 @@
       contactLinks.push(`<a class="offer-link" href="${escapeHtml(wwwUrl)}" target="_blank" rel="noopener noreferrer">${icon("globe", 13)} Website ${icon("externalLink", 11)}</a>`);
     }
 
+    const officeWhatsapp = whatsappUrl(myOffice.phone, whatsappTravelMessage());
+
     container.innerHTML = `
       <div>
         <div class="greeting-name" style="font-size:22px;">${escapeHtml(myOffice.titleOffice || "Mein Reisebüro")}</div>
         <div class="hero-sub">${escapeHtml(myOffice.name || "")}</div>
       </div>
+
+      ${officeWhatsapp ? `
+      <a class="btn-primary" href="${escapeHtml(officeWhatsapp)}" target="_blank" rel="noopener noreferrer">
+        ${icon("messageCircle", 18)} Per WhatsApp kontaktieren
+      </a>` : ""}
 
       <div class="offer-card">
         <div class="offer-icon">${icon("building", 22)}</div>
@@ -1441,6 +1479,7 @@
               <div class="office-team-contact">
                 ${b.phone ? `<a href="tel:${escapeHtml(b.phone.replace(/\s+/g, ""))}">${icon("phone", 12)}<span>${escapeHtml(b.phone)}</span></a>` : ""}
                 ${b.mail ? `<a href="mailto:${escapeHtml(b.mail)}">${icon("mail", 12)}<span>${escapeHtml(b.mail)}</span></a>` : ""}
+                ${whatsappUrl(b.phone, whatsappTravelMessage()) ? `<a href="${escapeHtml(whatsappUrl(b.phone, whatsappTravelMessage()))}" target="_blank" rel="noopener noreferrer">${icon("messageCircle", 12)}<span>WhatsApp</span></a>` : ""}
               </div>
             </div>`).join("")}
         </div>

@@ -37,17 +37,25 @@ Demo-Daten (Testagentur Bosys), gleiches Fallback-Muster wie bei
 Noch nicht abgedeckt: `MyOffers`/`MyHolidays`/`MyData` aus der
 GetOffice-Antwort (waren im Beispiel leer/0 – bei Bedarf später ergänzen).
 
-## 3. Kontaktmöglichkeit zum Reisebüro
+## 3. Kontaktmöglichkeit zum Reisebüro ✅ WhatsApp umgesetzt
 
-Möglichkeit, direkt aus der App mit dem Reisebüro zu kommunizieren:
-- Kontaktformular (Nachricht an das Büro, z.B. per E-Mail serverseitig
-  versendet)
-- WhatsApp-Link (`wa.me/<nummer>?text=...`) mit vorbefüllter Nachricht
-  (z.B. inkl. travelID)
+Möglichkeit, direkt aus der App mit dem Reisebüro zu kommunizieren.
+Bewusst mit der einfachsten Variante angefangen (kein Server-Code, kein
+neuer API-/SMTP-Zugang nötig, sofort einsatzbereit): ein `wa.me`-Link mit
+vorbefüllter Nachricht (Reisetitel + Reise-Nr., siehe
+`whatsappTravelMessage()` in `app.js`) – ein prominenter Button oben in
+"Mein Reisebüro" (zur allgemeinen Bürotelefonnummer `MyOffice.phone`)
+sowie ein WhatsApp-Link pro Berater (`MyBerater[].phone`, nur wenn
+vorhanden). `GetOffice` liefert keine eigene WhatsApp-Nummer, daher wird
+die normale Telefonnummer verwendet und serverseitig/clientseitig
+normalisiert (`normalizeWhatsAppNumber()`: führende `0` → Landesvorwahl
+`49`, `+`/`00` werden entfernt) – funktioniert nur zuverlässig, wenn die
+Nummer tatsächlich WhatsApp-fähig ist.
 
-Telefonnummer/E-Mail sind jetzt über den Bereich "Mein Reisebüro"
-(Punkt 2, `MyOffice.phone`/`.mail`) bzw. pro Berater (`MyBerater[].phone`/
-`.mail`) verfügbar – Kontaktformular/WhatsApp-Link selbst fehlen noch.
+Noch offen (mehr Aufwand, nur bei Bedarf): eigenes Kontaktformular mit
+serverseitigem E-Mail-Versand (bräuchte SMTP- oder E-Mail-API-Zugang,
+ähnlicher Umstand wie zuletzt bei Google Places) sowie ein einfacher
+`mailto:`-Link als zusätzliche Alternative für Nutzer ohne WhatsApp.
 
 ## 4. Weitere Leistungsarten im Reiseplan
 
