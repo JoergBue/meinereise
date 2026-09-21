@@ -446,6 +446,13 @@ html, body {
 /* Mein Reisebüro (GetOffice, siehe app.js renderOffice) */
 .office-contact-row { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 8px; }
 .office-contact-row .offer-link { margin-top: 0; }
+.office-social-row { display: flex; gap: 8px; margin-top: 10px; }
+.office-social-link {
+  width: 32px; height: 32px; border-radius: 100px;
+  background: var(--neutral-chip); color: var(--ink-soft);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
 .office-hours { display: flex; flex-direction: column; gap: 6px; }
 .office-hours-row {
   display: flex; justify-content: space-between; gap: 12px; font-size: 13px;

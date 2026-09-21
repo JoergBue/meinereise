@@ -45,17 +45,28 @@ neuer API-/SMTP-Zugang nötig, sofort einsatzbereit): ein `wa.me`-Link mit
 vorbefüllter Nachricht (Reisetitel + Reise-Nr., siehe
 `whatsappTravelMessage()` in `app.js`) – ein prominenter Button oben in
 "Mein Reisebüro" sowie ein WhatsApp-Link pro Berater (`MyBerater[].phone`,
-nur wenn vorhanden). `GetOffice` liefert keine eigene WhatsApp-Nummer,
-daher wird eine Telefonnummer verwendet und clientseitig normalisiert
-(`normalizeWhatsAppNumber()`: führende `0` → Landesvorwahl `49`, `+`/`00`
-werden entfernt) – funktioniert nur zuverlässig, wenn die Nummer
-tatsächlich WhatsApp-fähig ist. Für den Button oben (allgemeiner
-Büro-Kontakt) kann über `WHATSAPP_OFFICE_NUMBER` in `.env` die
-tatsächliche WhatsApp-Nummer des Büros hinterlegt werden (server.js
-liefert sie über `/api/office`s `whatsapp`-Feld) – ohne diese Variable
-fällt der Button auf `MyOffice.phone` zurück, das oft eine normale
-Festnetznummer ist. Die Berater-Links nutzen weiterhin direkt
-`MyBerater[].phone`.
+nur wenn vorhanden).
+
+Für den Button oben (allgemeiner Büro-Kontakt) liefert `GetOffice`
+inzwischen ein eigenes Feld `MyOffice.whatsapp` (ein fertiger,
+einsatzbereiter `wa.me`-Link) – das ist jetzt die primäre und
+maßgebliche Quelle: ist es vorhanden, gilt WhatsApp als nutzbar und der
+Button erscheint (`whatsappUrlFromLink()` in `app.js`). Als Fallback,
+falls dieses Feld (noch) nicht geliefert wird, kann weiterhin über
+`WHATSAPP_OFFICE_NUMBER` in `.env` eine Nummer hinterlegt werden
+(clientseitig normalisiert über `normalizeWhatsAppNumber()`). Ein
+Rückgriff auf `MyOffice.phone` (normale Festnetznummer, nicht
+zuverlässig WhatsApp-fähig) findet nicht mehr statt – ohne
+`MyOffice.whatsapp` und ohne `WHATSAPP_OFFICE_NUMBER` bleibt der Button
+einfach weg. Die Berater-Links nutzen weiterhin direkt
+`MyBerater[].phone`, da es dort kein eigenes `whatsapp`-Feld gibt.
+
+Zusätzlich: Im Adressbereich von "Mein Reisebüro" wird jetzt eine Reihe
+kleiner Social-Media-Icons angezeigt (Facebook, Instagram, YouTube,
+TikTok), jeweils nur wenn `GetOffice` das entsprechende Feld
+(`facebook`/`instagramm`/`youtube`/`tiktok`) tatsächlich mit einem Wert
+liefert (`officeSocialLinks()` in `app.js`, nutzt den bestehenden
+Markdown-Link-Parser `offerLinkUrl()`).
 
 Noch offen (mehr Aufwand, nur bei Bedarf): eigenes Kontaktformular mit
 serverseitigem E-Mail-Versand (bräuchte SMTP- oder E-Mail-API-Zugang,

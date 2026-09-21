@@ -41,7 +41,11 @@
     globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/>',
     utensils: '<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/>',
     messageCircle: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
-    star: '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>'
+    star: '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+    facebook: '<path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>',
+    instagram: '<rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><path d="M17.5 6.5h.01"/>',
+    youtube: '<path d="M2.5 17a24.1 24.1 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.6 49.6 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.1 24.1 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.6 49.6 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/>',
+    tiktok: '<path d="M9 12a4 4 0 1 0 4 4V2a5 5 0 0 0 5 5"/>'
   };
 
   function icon(name, size = 20) {
@@ -188,8 +192,8 @@
     source: null,
     officeData: null,
     // WhatsApp-Nummer des Büros, falls serverseitig über WHATSAPP_OFFICE_NUMBER
-    // konfiguriert (siehe server.js handleOffice) – sonst leer, dann fällt
-    // renderOffice() auf MyOffice.phone zurück (siehe whatsappUrl()).
+    // konfiguriert (siehe server.js handleOffice) – nur noch Fallback, falls
+    // GetOffice kein eigenes MyOffice.whatsapp liefert (siehe renderOffice()).
     officeWhatsapp: "",
     activeView: "overview",
     activeDay: null,
@@ -1382,9 +1386,12 @@
   // WhatsApp-Kontakt (siehe TODO.md Punkt 3) – bewusst die einfachste
   // Variante: ein wa.me-Link mit vorbefüllter Nachricht statt eines eigenen
   // Kontaktformulars mit serverseitigem Mailversand (kein SMTP/E-Mail-API-
-  // Zugang nötig, funktioniert sofort). GetOffice liefert kein eigenes
-  // WhatsApp-Feld, daher wird die normale Telefonnummer (MyOffice.phone
-  // bzw. MyBerater[].phone) verwendet.
+  // Zugang nötig, funktioniert sofort). Für den allgemeinen Büro-Kontakt
+  // liefert GetOffice inzwischen ein eigenes Feld MyOffice.whatsapp (ein
+  // fertiger wa.me-Link) – wenn vorhanden, gilt WhatsApp als nutzbar (siehe
+  // whatsappUrlFromLink()/renderOffice()). Für die Berater (MyBerater[])
+  // gibt es kein eigenes whatsapp-Feld, dort wird weiterhin die normale
+  // Telefonnummer (phone) verwendet.
   function normalizeWhatsAppNumber(phone) {
     if (!phone) return "";
     let digits = String(phone).replace(/[^\d+]/g, "");
@@ -1400,6 +1407,24 @@
     return `https://wa.me/${digits}${message ? `?text=${encodeURIComponent(message)}` : ""}`;
   }
 
+  function appendUrlParam(url, key, value) {
+    if (!url) return "";
+    const sep = url.includes("?") ? "&" : "?";
+    return `${url}${sep}${key}=${encodeURIComponent(value)}`;
+  }
+
+  // MyOffice.whatsapp ist bereits ein fertiger wa.me-Link (kein reiner
+  // Telefonnummer-String wie bei normalizeWhatsAppNumber) – offerLinkUrl()
+  // übernimmt hier nur die schon vorhandene Markdown-Link-Erkennung
+  // ("[text](url)", siehe z.B. facebook/instagramm/youtube), falls das
+  // Feld irgendwann ebenso geliefert wird. Die vorbefüllte Nachricht wird
+  // als text-Parameter angehängt.
+  function whatsappUrlFromLink(link, message) {
+    const base = offerLinkUrl(link);
+    if (!base) return "";
+    return message ? appendUrlParam(base, "text", message) : base;
+  }
+
   // Vorbefüllte Nachricht mit Reisekontext, damit das Büro sofort weiß,
   // um welche Reise es geht, ohne dass der Gast das selbst tippen muss.
   function whatsappTravelMessage() {
@@ -1407,6 +1432,26 @@
     const title = grund.travelTitle ? ` "${grund.travelTitle}"` : "";
     const ref = grund.travelID || state.travelID || "";
     return `Hallo, ich habe eine Frage zu meiner Reise${title}${ref ? ` (Reise-Nr. ${ref})` : ""}.`;
+  }
+
+  // Social-Media-Links im Bereich "Mein Reisebüro" – nur anzeigen, wenn
+  // GetOffice das jeweilige Feld tatsächlich liefert (facebook/instagramm/
+  // youtube/tiktok sind alle optional und meist leer, siehe Beispieldaten).
+  // Die Felder kommen teils als Markdown-Link ("[text](url)", siehe
+  // offerLinkUrl()), teils vermutlich später als reine URL – beides wird
+  // abgedeckt. "instagramm" ist die tatsächliche (falsch geschriebene)
+  // GetOffice-Feldbezeichnung, kein Tippfehler hier im Code.
+  const OFFICE_SOCIAL_FIELDS = [
+    { field: "facebook", icon: "facebook", label: "Facebook" },
+    { field: "instagramm", icon: "instagram", label: "Instagram" },
+    { field: "youtube", icon: "youtube", label: "YouTube" },
+    { field: "tiktok", icon: "tiktok", label: "TikTok" }
+  ];
+
+  function officeSocialLinks(myOffice) {
+    return OFFICE_SOCIAL_FIELDS
+      .map((s) => ({ ...s, url: offerLinkUrl(myOffice[s.field]) }))
+      .filter((s) => s.url);
   }
 
   function renderOffice() {
@@ -1434,10 +1479,16 @@
       contactLinks.push(`<a class="offer-link" href="${escapeHtml(wwwUrl)}" target="_blank" rel="noopener noreferrer">${icon("globe", 13)} Website ${icon("externalLink", 11)}</a>`);
     }
 
-    // Bevorzugt die explizit konfigurierte WhatsApp-Nummer (WHATSAPP_OFFICE_NUMBER,
-    // siehe server.js) – die ist tatsächlich WhatsApp-fähig, anders als
-    // MyOffice.phone, das oft eine normale Festnetznummer ist.
-    const officeWhatsapp = whatsappUrl(state.officeWhatsapp || myOffice.phone, whatsappTravelMessage());
+    // Priorität: 1) natives GetOffice-Feld MyOffice.whatsapp (fertiger
+    // wa.me-Link – wenn geliefert, gilt WhatsApp laut Vorgabe als möglich),
+    // 2) manuell konfigurierte WHATSAPP_OFFICE_NUMBER (.env, siehe
+    // server.js) als Fallback, falls das Feld (noch) nicht geliefert wird.
+    // Kein Rückgriff mehr auf MyOffice.phone (Festnetz, nicht zuverlässig
+    // WhatsApp-fähig) – dann bleibt der Button einfach weg.
+    const officeWhatsapp = whatsappUrlFromLink(myOffice.whatsapp, whatsappTravelMessage())
+      || whatsappUrl(state.officeWhatsapp, whatsappTravelMessage());
+
+    const socialLinks = officeSocialLinks(myOffice);
 
     container.innerHTML = `
       <div>
@@ -1455,6 +1506,10 @@
         <div style="flex:1;min-width:0;">
           ${myOffice.adresse ? `<div class="hotel-description">${myOffice.adresse}</div>` : ""}
           ${contactLinks.length ? `<div class="office-contact-row">${contactLinks.join("")}</div>` : ""}
+          ${socialLinks.length ? `
+          <div class="office-social-row">
+            ${socialLinks.map((s) => `<a class="office-social-link" href="${escapeHtml(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(s.label)}">${icon(s.icon, 16)}</a>`).join("")}
+          </div>` : ""}
         </div>
       </div>
 

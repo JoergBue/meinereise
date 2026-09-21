@@ -478,8 +478,10 @@ function demoOfficeData() {
           adresse: "<p><strong>Testagentur Bosys (PreAbn)</strong><br>Normannenweg 28<br>DE 20537 Hamburg<br>Tel.: +49 40 25 33 22 02<br>Fax.: +49 40 25 33 22 499<br>Mail: karsten.martin@bosys.info<br>Internet: https://www.bosys.info</p>",
           code: "20537",
           companyID: "049998103",
+          facebook: "[www.facebook.com/bosys](https://www.facebook.com/bosys)",
           header: "Testagentur Bosys 2.2",
           impressum: "<p>BOSYS Software GmbH<br>Normannenweg 28<br>DE 20537 Hamburg</p><p>Tel.: 49 (0)40 &ndash; 25 33 22 &ndash; 0<br>Fax: 49 (0)40 &ndash; 25 33 22 &ndash; 499</p><p>Unternehmenswebseite: [www.bosys.info](https://www.bosys.info)<br>E-Mail: info@bosys.info</p><p>Gesch&auml;ftsf&uuml;hrung: Burkhard Lindow, J&ouml;rg B&uuml;nning</p><p>Handelsregisternummer &ndash; Amtsgericht Hamburg &ndash; eingetragen unter HRB 107083<br>Umsatzsteueridentifikationsnummer: DE 227572951<br>Inhaltlich Verantwortlicher nach &sect; 55 Abs. 2 RStV: Burkhard Lindow, Anschrift s.o.</p><p>&nbsp;</p><p>Dieses Dokument kommt aus Firmenstamm/B&uuml;ros/Online-Impressum</p>",
+          instagramm: "[www.instagram.com/profile/bosys](https://www.instagram.com/profile/bosys)",
           land: "DE",
           latitude: "53.5509291",
           logoset: "bosys",
@@ -495,9 +497,19 @@ function demoOfficeData() {
           subDomain: "360travel",
           teampic: "https://preabn.bosys.eu//cgi-bin/sucxessbild.cgi?11=0&12=49103&13=1&14=3",
           teamtext: "<p>Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu. In enim justo, rhoncus ut, imperdiet a, venenatis vitae, justo. Nullam dictum felis eu pede mollis pretium. Integer tincidunt. Cras dapibus. Vivamus elementum semper nisi. Aenean vulputate eleifend tellus. Aenean leo ligula,</p><p>&nbsp;</p><p>Das k&ouml;nnte eine Beschreibung sein</p><p><a href=\"http://www.bosys.info\">http://www.bosys.info</a></p>",
+          // tiktok bewusst leer wie im echten Beispiel – testet, dass ein
+          // fehlendes Social-Feld korrekt kein Icon rendert (siehe
+          // officeSocialLinks() in app.js).
+          tiktok: "",
           titleOffers: "Meine Angebote",
           titleOffice: "Mein Reisebüro",
+          // whatsapp: natives GetOffice-Feld, ein fertiger wa.me-Link – wenn
+          // vorhanden, gilt WhatsApp laut Vorgabe als möglich (siehe
+          // renderOffice()/whatsappUrlFromLink() in app.js). Ersetzt die
+          // frühere Rate-Logik über MyOffice.phone.
+          whatsapp: "https://wa.me/491510",
           www: "https://www.bosys.info",
+          youtube: "[www.bosys.info](https://www.bosys.info)",
           zoom: "1.000"
         },
         Session: { sessionID: "" }

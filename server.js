@@ -46,13 +46,14 @@ const BOSYS_SESSION_ID = process.env.BOSYS_SESSION_ID || "";
 const BOSYS_OFFICE_TOKEN = process.env.BOSYS_OFFICE_TOKEN || "";
 
 // WhatsApp-Nummer des Büros für den "Per WhatsApp kontaktieren"-Button
-// (siehe TODO.md Punkt 3) – GetOffice liefert kein eigenes WhatsApp-Feld,
-// bisher fiel der Button daher auf MyOffice.phone zurück (oft eine
-// Festnetznummer, nicht zwangsläufig WhatsApp-fähig). Hier kann stattdessen
-// die tatsächliche WhatsApp-Nummer des Büros hinterlegt werden – beliebiges
-// gängiges Format (z.B. "+49 171 1775434", "00491711775434" oder
-// "0171 1775434"), wird clientseitig normalisiert (siehe
-// normalizeWhatsAppNumber() in app.js). Leer: Fallback auf MyOffice.phone.
+// (siehe TODO.md Punkt 3) – GetOffice liefert inzwischen ein eigenes Feld
+// MyOffice.whatsapp (fertiger wa.me-Link), das app.js vorrangig nutzt.
+// Diese Variable ist nur noch der Fallback, falls dieses Feld (noch) nicht
+// geliefert wird – beliebiges gängiges Format (z.B. "+49 171 1775434",
+// "00491711775434" oder "0171 1775434"), wird clientseitig normalisiert
+// (siehe normalizeWhatsAppNumber() in app.js). Leer + kein MyOffice.whatsapp:
+// der Button bleibt dann weg, es wird nicht mehr anhand von MyOffice.phone
+// geraten.
 const WHATSAPP_OFFICE_NUMBER = process.env.WHATSAPP_OFFICE_NUMBER || "";
 
 // "In der Nähe" (siehe TODO.md) – unabhängig von BOSYS, ruft die Google
@@ -491,6 +492,6 @@ server.listen(PORT, () => {
     ? "In der Nähe (Google Places): Live-Anbindung aktiv."
     : "In der Nähe (Google Places): GOOGLE_PLACES_API_KEY nicht gesetzt – Demo-Orte aktiv.");
   console.log(WHATSAPP_OFFICE_NUMBER
-    ? "WhatsApp-Kontakt: eigene Büro-Nummer aus WHATSAPP_OFFICE_NUMBER konfiguriert."
-    : "WhatsApp-Kontakt: WHATSAPP_OFFICE_NUMBER nicht gesetzt – Fallback auf MyOffice.phone.");
+    ? "WhatsApp-Kontakt: WHATSAPP_OFFICE_NUMBER als Fallback konfiguriert (genutzt, falls MyOffice.whatsapp nicht geliefert wird)."
+    : "WhatsApp-Kontakt: WHATSAPP_OFFICE_NUMBER nicht gesetzt – nur MyOffice.whatsapp (falls von GetOffice geliefert) aktiviert den Button.");
 });
