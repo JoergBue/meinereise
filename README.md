@@ -46,6 +46,7 @@ Alle Zugangsdaten für die BOSYS-Schnittstelle stehen ausschließlich in
 | `BOSYS_SESSION_ID`   | GetReiseData.sessionID (daraus liest BOSYS Firma/Büro/Kunde) |
 | `BOSYS_OFFICE_TOKEN` | GetOffice.Token (der "HashKey") für den Bereich "Mein Reisebüro" – unabhängig von `BOSYS_SESSION_ID`/travelID |
 | `GOOGLE_PLACES_API_KEY` | API-Key für "In der Nähe" (Google Places API "New") – unabhängig von BOSYS |
+| `WHATSAPP_OFFICE_NUMBER` | WhatsApp-Nummer des Büros für den Kontakt-Button in "Mein Reisebüro" – unabhängig von BOSYS |
 | `PORT`               | lokaler Port, Standard `3000`                           |
 
 Zwingend für den Live-Modus sind nur `BOSYS_GATEWAY_URL` und
@@ -77,6 +78,13 @@ Anzahl kostenpflichtiger Places-Aufrufe gering zu halten. Voraussetzung für
 den Live-Betrieb: in der Google Cloud Console ein Projekt mit aktivierter
 "Places API (New)" und eingerichtetem Billing, der API-Key sollte auf HTTP-
 Referrer bzw. IP der eigenen Domain eingeschränkt werden.
+
+Der "Per WhatsApp kontaktieren"-Button in "Mein Reisebüro" (`/api/office`
+liefert dafür das Feld `whatsapp`) nutzt `WHATSAPP_OFFICE_NUMBER`, falls
+gesetzt – GetOffice liefert selbst keine WhatsApp-Nummer. Ohne diese
+Variable fällt der Button auf `MyOffice.phone` zurück, was oft eine normale
+Festnetznummer und damit nicht WhatsApp-fähig ist. Format ist beliebig
+(mit/ohne `+`, mit/ohne führende `00`/`0`) – wird automatisch normalisiert.
 
 ## Deployment auf Hostinger (hPanel, Node.js-App)
 
@@ -110,6 +118,7 @@ Hostinger. Die App liegt komplett in diesem GitHub-Repository
    BOSYS_SESSION_ID=<echte sessionID>
    BOSYS_OFFICE_TOKEN=<HashKey für Mein Reisebüro, falls vorhanden>
    GOOGLE_PLACES_API_KEY=<Google-Places-API-Key, falls vorhanden>
+   WHATSAPP_OFFICE_NUMBER=<WhatsApp-Nummer des Büros, falls vorhanden>
    ```
 
    `PORT` nicht selbst setzen – Hostinger gibt den Port über die Umgebung

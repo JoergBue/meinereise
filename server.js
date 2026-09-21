@@ -45,6 +45,16 @@ const BOSYS_SESSION_ID = process.env.BOSYS_SESSION_ID || "";
 // Reise-Kontext – GetOffice hängt ja ohnehin nicht an einer travelID.
 const BOSYS_OFFICE_TOKEN = process.env.BOSYS_OFFICE_TOKEN || "";
 
+// WhatsApp-Nummer des Büros für den "Per WhatsApp kontaktieren"-Button
+// (siehe TODO.md Punkt 3) – GetOffice liefert kein eigenes WhatsApp-Feld,
+// bisher fiel der Button daher auf MyOffice.phone zurück (oft eine
+// Festnetznummer, nicht zwangsläufig WhatsApp-fähig). Hier kann stattdessen
+// die tatsächliche WhatsApp-Nummer des Büros hinterlegt werden – beliebiges
+// gängiges Format (z.B. "+49 171 1775434", "00491711775434" oder
+// "0171 1775434"), wird clientseitig normalisiert (siehe
+// normalizeWhatsAppNumber() in app.js). Leer: Fallback auf MyOffice.phone.
+const WHATSAPP_OFFICE_NUMBER = process.env.WHATSAPP_OFFICE_NUMBER || "";
+
 // "In der Nähe" (siehe TODO.md) – unabhängig von BOSYS, ruft die Google
 // Places API (New) auf, um Restaurants/Sehenswürdigkeiten rund um den
 // Hotel-Standort eines Reisetags anzuzeigen. Ohne Key: Demo-Orte.
@@ -266,7 +276,8 @@ async function handleOffice(res) {
     sendJson(res, 200, {
       source: "demo",
       hinweis: "BOSYS_OFFICE_TOKEN ist nicht in .env gesetzt – es werden Demo-Reisebüro-Daten angezeigt.",
-      data: demoOfficeData().bns_response.GetOffice
+      data: demoOfficeData().bns_response.GetOffice,
+      whatsapp: WHATSAPP_OFFICE_NUMBER
     });
     return;
   }
@@ -309,13 +320,14 @@ async function handleOffice(res) {
       throw new Error("Antwort enthielt kein bns_response.GetOffice");
     }
 
-    sendJson(res, 200, { source: "live", data: officeData });
+    sendJson(res, 200, { source: "live", data: officeData, whatsapp: WHATSAPP_OFFICE_NUMBER });
   } catch (err) {
     console.error("[GetOffice] Live-Aufruf fehlgeschlagen, liefere Demo-Daten:", err.message);
     sendJson(res, 200, {
       source: "demo",
       hinweis: `Live-Aufruf fehlgeschlagen (${err.message}) – es werden Demo-Reisebüro-Daten angezeigt.`,
-      data: demoOfficeData().bns_response.GetOffice
+      data: demoOfficeData().bns_response.GetOffice,
+      whatsapp: WHATSAPP_OFFICE_NUMBER
     });
   }
 }
@@ -478,4 +490,7 @@ server.listen(PORT, () => {
   console.log(isPlacesLiveConfigured
     ? "In der Nähe (Google Places): Live-Anbindung aktiv."
     : "In der Nähe (Google Places): GOOGLE_PLACES_API_KEY nicht gesetzt – Demo-Orte aktiv.");
+  console.log(WHATSAPP_OFFICE_NUMBER
+    ? "WhatsApp-Kontakt: eigene Büro-Nummer aus WHATSAPP_OFFICE_NUMBER konfiguriert."
+    : "WhatsApp-Kontakt: WHATSAPP_OFFICE_NUMBER nicht gesetzt – Fallback auf MyOffice.phone.");
 });

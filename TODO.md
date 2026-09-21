@@ -44,13 +44,18 @@ Bewusst mit der einfachsten Variante angefangen (kein Server-Code, kein
 neuer API-/SMTP-Zugang nötig, sofort einsatzbereit): ein `wa.me`-Link mit
 vorbefüllter Nachricht (Reisetitel + Reise-Nr., siehe
 `whatsappTravelMessage()` in `app.js`) – ein prominenter Button oben in
-"Mein Reisebüro" (zur allgemeinen Bürotelefonnummer `MyOffice.phone`)
-sowie ein WhatsApp-Link pro Berater (`MyBerater[].phone`, nur wenn
-vorhanden). `GetOffice` liefert keine eigene WhatsApp-Nummer, daher wird
-die normale Telefonnummer verwendet und serverseitig/clientseitig
-normalisiert (`normalizeWhatsAppNumber()`: führende `0` → Landesvorwahl
-`49`, `+`/`00` werden entfernt) – funktioniert nur zuverlässig, wenn die
-Nummer tatsächlich WhatsApp-fähig ist.
+"Mein Reisebüro" sowie ein WhatsApp-Link pro Berater (`MyBerater[].phone`,
+nur wenn vorhanden). `GetOffice` liefert keine eigene WhatsApp-Nummer,
+daher wird eine Telefonnummer verwendet und clientseitig normalisiert
+(`normalizeWhatsAppNumber()`: führende `0` → Landesvorwahl `49`, `+`/`00`
+werden entfernt) – funktioniert nur zuverlässig, wenn die Nummer
+tatsächlich WhatsApp-fähig ist. Für den Button oben (allgemeiner
+Büro-Kontakt) kann über `WHATSAPP_OFFICE_NUMBER` in `.env` die
+tatsächliche WhatsApp-Nummer des Büros hinterlegt werden (server.js
+liefert sie über `/api/office`s `whatsapp`-Feld) – ohne diese Variable
+fällt der Button auf `MyOffice.phone` zurück, das oft eine normale
+Festnetznummer ist. Die Berater-Links nutzen weiterhin direkt
+`MyBerater[].phone`.
 
 Noch offen (mehr Aufwand, nur bei Bedarf): eigenes Kontaktformular mit
 serverseitigem E-Mail-Versand (bräuchte SMTP- oder E-Mail-API-Zugang,

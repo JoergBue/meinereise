@@ -187,6 +187,10 @@
     data: null,
     source: null,
     officeData: null,
+    // WhatsApp-Nummer des Büros, falls serverseitig über WHATSAPP_OFFICE_NUMBER
+    // konfiguriert (siehe server.js handleOffice) – sonst leer, dann fällt
+    // renderOffice() auf MyOffice.phone zurück (siehe whatsappUrl()).
+    officeWhatsapp: "",
     activeView: "overview",
     activeDay: null,
     activeOfferFilter: "all",
@@ -241,6 +245,7 @@
       if (officeRes && officeRes.ok) {
         const officeJson = await officeRes.json();
         state.officeData = officeJson.data || null;
+        state.officeWhatsapp = officeJson.whatsapp || "";
       }
 
       const banner = document.getElementById("demoBanner");
@@ -1429,7 +1434,10 @@
       contactLinks.push(`<a class="offer-link" href="${escapeHtml(wwwUrl)}" target="_blank" rel="noopener noreferrer">${icon("globe", 13)} Website ${icon("externalLink", 11)}</a>`);
     }
 
-    const officeWhatsapp = whatsappUrl(myOffice.phone, whatsappTravelMessage());
+    // Bevorzugt die explizit konfigurierte WhatsApp-Nummer (WHATSAPP_OFFICE_NUMBER,
+    // siehe server.js) – die ist tatsächlich WhatsApp-fähig, anders als
+    // MyOffice.phone, das oft eine normale Festnetznummer ist.
+    const officeWhatsapp = whatsappUrl(state.officeWhatsapp || myOffice.phone, whatsappTravelMessage());
 
     container.innerHTML = `
       <div>
