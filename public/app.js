@@ -1413,14 +1413,54 @@
     return `${url}${sep}${key}=${encodeURIComponent(value)}`;
   }
 
+  // MyOffice.whatsapp liefert die Nummer teils fälschlich mit führender
+  // "00"-Auslandsvorwahl-Kennung statt der reinen Landesvorwahl, z.B.
+  // "https://wa.me/00491711775434" statt korrekt
+  // "https://wa.me/491711775434". wa.me/api.whatsapp.com erwarten die
+  // Nummer ausschließlich als Ziffernfolge aus Landesvorwahl+Rufnummer
+  // (kein "00", kein "+") – sonst öffnet der Link WhatsApp mit einer
+  // ungültigen Nummer. Diese Funktion bereinigt genau diesen Nummernteil,
+  // egal ob als wa.me/<nummer> oder als ...?phone=<nummer>-Parameter.
+  function fixWhatsAppLinkNumber(url) {
+    if (!url) return url;
+    try {
+      const u = new URL(url);
+      if (u.searchParams.has("phone")) {
+        u.searchParams.set("phone", normalizeWhatsAppLinkDigits(u.searchParams.get("phone")));
+        return u.toString();
+      }
+      const parts = u.pathname.split("/").filter(Boolean);
+      if (parts.length) {
+        parts[parts.length - 1] = normalizeWhatsAppLinkDigits(parts[parts.length - 1]);
+        u.pathname = "/" + parts.join("/");
+        return u.toString();
+      }
+      return url;
+    } catch (e) {
+      return url;
+    }
+  }
+
+  // Wie normalizeWhatsAppNumber(), aber ohne die "einzelne führende 0 ->
+  // Landesvorwahl 49"-Umwandlung: Hier steckt die Landesvorwahl bereits im
+  // Wert (z.B. "0049..."), eine einzelne "0" davor wäre nur ein weiterer
+  // Formatfehler und keine deutsche Ortsvorwahl.
+  function normalizeWhatsAppLinkDigits(value) {
+    let digits = String(value || "").replace(/\D/g, "");
+    if (digits.startsWith("00")) digits = digits.slice(2);
+    return digits;
+  }
+
   // MyOffice.whatsapp ist bereits ein fertiger wa.me-Link (kein reiner
   // Telefonnummer-String wie bei normalizeWhatsAppNumber) – offerLinkUrl()
   // übernimmt hier nur die schon vorhandene Markdown-Link-Erkennung
   // ("[text](url)", siehe z.B. facebook/instagramm/youtube), falls das
-  // Feld irgendwann ebenso geliefert wird. Die vorbefüllte Nachricht wird
-  // als text-Parameter angehängt.
+  // Feld irgendwann ebenso geliefert wird. fixWhatsAppLinkNumber() bereinigt
+  // anschließend eine fälschlich vorangestellte "00"-Kennung im Nummernteil
+  // (siehe oben). Die vorbefüllte Nachricht wird als text-Parameter
+  // angehängt.
   function whatsappUrlFromLink(link, message) {
-    const base = offerLinkUrl(link);
+    const base = fixWhatsAppLinkNumber(offerLinkUrl(link));
     if (!base) return "";
     return message ? appendUrlParam(base, "text", message) : base;
   }

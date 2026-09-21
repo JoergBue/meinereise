@@ -506,8 +506,11 @@ function demoOfficeData() {
           // whatsapp: natives GetOffice-Feld, ein fertiger wa.me-Link – wenn
           // vorhanden, gilt WhatsApp laut Vorgabe als möglich (siehe
           // renderOffice()/whatsappUrlFromLink() in app.js). Ersetzt die
-          // frühere Rate-Logik über MyOffice.phone.
-          whatsapp: "https://wa.me/491510",
+          // frühere Rate-Logik über MyOffice.phone. Bewusst mit führender
+          // "00"-Kennung wie im echten Beispiel (GetOffice liefert das teils
+          // so) – testet, dass fixWhatsAppLinkNumber() daraus korrekt
+          // "https://wa.me/491711775434" macht.
+          whatsapp: "https://wa.me/00491711775434",
           www: "https://www.bosys.info",
           youtube: "[www.bosys.info](https://www.bosys.info)",
           zoom: "1.000"
