@@ -195,3 +195,37 @@ Ansicht (`renderPlanSummary()` statt `renderPlanActive()`):
 Betrifft nur den Reiseplan; Reisen, die noch bevorstehen oder gerade
 laufen, sehen weiterhin die bisherige Tages-Tabs-Ansicht mit "In der
 Nähe".
+
+## 9. "Nächste Reise" ✅ umgesetzt
+
+Greift eine der unter Punkt 7 offen gelassenen Ideen auf ("Wiederkehr-
+Rabatt"): Ist die aktuelle Reise beendet (`tripStatus() === "ended"`), zeigt
+die Startseite eine Einsprung-Karte (`renderNextTripEntry()` in `app.js`) zu
+einem Formular (`view-nexttrip`, `renderNextTrip()`), das Reisewünsche fürs
+nächste Angebot sammelt: Zeitraum (genau oder ungefähr), Reiseziel (inkl.
+Option "auch am gleichen Ziel interessiert"), Budget, Personen (Erwachsene/
+Kinder), Prioritäten (Strandnähe, Sonne, Berge, Meer, Kultur, Erholung,
+Aktivität, All-Inclusive, Sonstiges), E-Mail-Adresse sowie eine
+Pflicht-Einverständniserklärung (Speicherung + Kontakt per E-Mail). Bewusst
+ein einzelnes Formular statt eines mehrstufigen Assistenten (siehe Kommentar
+in `app.js`).
+
+Absenden geht per POST an `/api/naechste-reise` (`handleNextTripRequest()`
+in `server.js`, einziger POST-Endpunkt der App – Body-Parsing daher selbst
+gebaut, siehe `readJsonBody()`). Ist `NEXT_TRIP_CGI_URL` in `.env` gesetzt,
+wird die Anfrage ans MidOffice-CGI gepusht (optional mit
+`NEXT_TRIP_CGI_TOKEN`); ohne diesen Wert, oder wenn der Push fehlschlägt,
+wird nur geloggt – der Nutzer sieht immer eine Erfolgsmeldung, nie einen
+technischen Fehler (gleiches Fallback-Prinzip wie bei den übrigen
+Integrationen).
+
+Ist in `ReiseGrund` ein Gutschein-Betrag hinterlegt (> 0), weist sowohl die
+Einsprung-Karte als auch das Formular selbst darauf hin, dass er bei der
+nächsten Buchung im Reisebüro (auch online) eingelöst werden kann.
+
+**Offener Punkt:** Der Gutschein-Betrag wird über den Platzhalter-Feldnamen
+`ReiseGrund.voucherAmount` gelesen (`nextTripVoucherAmount()` in `app.js`)
+– der tatsächliche Feldname, den `GetReiseData` dafür liefert, ist noch
+nicht bestätigt (Schema nicht geraten, siehe bisherige Vorsicht bei
+`hotelPics`/`ZusatzLeistung` etc. – sobald das MidOffice-Team den echten
+Namen nennt, in `demoData.js` und `app.js` umbenennen).

@@ -41,7 +41,15 @@ function demoReiseData(travelID) {
           travelText: "3.10.2026 bis 11.10.2026<br>ab Frankfurt · Rundreise Sizilien · 2 Erwachsene",
           travelKategorie: "40",
           travelGiataID: "",
-          travelers: "2"
+          travelers: "2",
+          // "Nächste Reise" (siehe TODO.md) – Gutschein-Flag: 0,00 = kein
+          // Gutschein, sonst der einlösbare Betrag in Eurocent (analog zu
+          // travelPrice). ACHTUNG: "voucherAmount" ist ein Platzhalter-
+          // Feldname – der tatsächliche Feldname, den GetReiseData dafür
+          // liefert, ist noch nicht bestätigt (siehe README "Nächste Reise").
+          // Sobald das MidOffice-Team den echten Namen nennt, hier und in
+          // app.js (nextTripVoucherAmount()) umbenennen.
+          voucherAmount: "5000"
         },
         // Reisepreis-Übersicht (siehe view-price/renderPrice in app.js). Preis-
         // Felder (price/RePreis) sind wie travelPrice Ganzzahlen in Eurocent;

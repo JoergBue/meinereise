@@ -61,6 +61,20 @@ const WHATSAPP_OFFICE_NUMBER = process.env.WHATSAPP_OFFICE_NUMBER || "";
 // Hotel-Standort eines Reisetags anzuzeigen. Ohne Key: Demo-Orte.
 const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
 
+// "Nächste Reise" (siehe TODO.md) – Formular auf der Startseite (nur bei
+// beendeten Reisen sichtbar), das Reisewünsche für ein Folgeangebot
+// sammelt. NEXT_TRIP_CGI_URL ist der Endpunkt des MidOffice-CGI, an den die
+// Anfrage gepusht wird; NEXT_TRIP_CGI_TOKEN optional als Bearer-Token,
+// falls das CGI eine Authentifizierung verlangt. Ohne NEXT_TRIP_CGI_URL
+// (oder bei einem fehlgeschlagenen Push) wird die Anfrage nur serverseitig
+// geloggt statt an den Nutzer als Fehler durchgereicht – gleiches
+// Fallback-Prinzip wie bei den übrigen Integrationen, nur umgekehrt
+// (Empfang statt Abruf): der Nutzer soll nie einen technischen Fehler für
+// etwas sehen, das er nicht beheben kann, das Büro kann bei Bedarf im Log
+// nachschauen.
+const NEXT_TRIP_CGI_URL = process.env.NEXT_TRIP_CGI_URL || "";
+const NEXT_TRIP_CGI_TOKEN = process.env.NEXT_TRIP_CGI_TOKEN || "";
+
 // Nur URL + sessionID sind zwingend, um einen Live-Aufruf zu versuchen –
 // Terminal/Source haben sinnvolle Defaults, und manche Gateways (z.B.
 // Test-/Sandbox-Umgebungen) verlangen (noch) keinen Token.
@@ -115,6 +129,11 @@ const server = http.createServer(async (req, res) => {
 
   if (url.pathname === "/api/places") {
     await handlePlaces(url, res);
+    return;
+  }
+
+  if (url.pathname === "/api/naechste-reise" && req.method === "POST") {
+    await handleNextTripRequest(req, res);
     return;
   }
 
@@ -467,6 +486,139 @@ async function handlePlaces(url, res) {
   }
 }
 
+// "Nächste Reise" – nimmt das Formular von der Startseite entgegen (siehe
+// renderNextTrip() in app.js) und pusht es, sofern konfiguriert, an das
+// MidOffice-CGI (NEXT_TRIP_CGI_URL). Einziger POST-Endpunkt der App, daher
+// der einzige Ort, der den Request-Body selbst einliest – Node bringt dafür
+// ohne zusätzliche Abhängigkeit kein fertiges Verfahren mit.
+const NEXT_TRIP_MAX_BODY_BYTES = 20000; // ausreichend für das Formular, schützt vor überlangen Bodies
+const NEXT_TRIP_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function readJsonBody(req, maxBytes) {
+  return new Promise((resolve, reject) => {
+    const contentType = req.headers["content-type"] || "";
+    if (contentType.indexOf("application/json") === -1) {
+      reject(new Error("Content-Type application/json erforderlich"));
+      return;
+    }
+
+    let settled = false;
+    let size = 0;
+    const chunks = [];
+
+    req.on("data", (chunk) => {
+      if (settled) return;
+      size += chunk.length;
+      if (size > maxBytes) {
+        settled = true;
+        reject(new Error("Anfrage zu groß"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+
+    req.on("end", () => {
+      if (settled) return;
+      settled = true;
+      try {
+        const raw = Buffer.concat(chunks).toString("utf8");
+        resolve(raw ? JSON.parse(raw) : {});
+      } catch (err) {
+        reject(new Error("Ungültiges JSON im Request-Body"));
+      }
+    });
+
+    req.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      reject(err);
+    });
+  });
+}
+
+async function handleNextTripRequest(req, res) {
+  let body;
+  try {
+    body = await readJsonBody(req, NEXT_TRIP_MAX_BODY_BYTES);
+  } catch (err) {
+    sendJson(res, 400, { error: err.message });
+    return;
+  }
+
+  const email = String(body.email || "").trim();
+  const consent = body.consent === true;
+
+  if (!NEXT_TRIP_EMAIL_RE.test(email)) {
+    sendJson(res, 400, { error: "Gültige E-Mail-Adresse erforderlich." });
+    return;
+  }
+  if (!consent) {
+    sendJson(res, 400, { error: "Einverständniserklärung erforderlich." });
+    return;
+  }
+
+  // Freitext-/Array-Felder bewusst auf eine sinnvolle Länge/Größe begrenzt,
+  // statt sie ungeprüft durchzureichen (der Body ist bereits über
+  // NEXT_TRIP_MAX_BODY_BYTES insgesamt gedeckelt, das hier ist zusätzlich
+  // gegen einzelne überlange Felder).
+  const payload = {
+    travelID: String(body.travelID || "").trim().slice(0, 50),
+    submittedAt: new Date().toISOString(),
+    periodType: body.periodType === "flexible" ? "flexible" : "exact",
+    periodFrom: String(body.periodFrom || "").slice(0, 20),
+    periodTo: String(body.periodTo || "").slice(0, 20),
+    periodFlexible: String(body.periodFlexible || "").slice(0, 200),
+    destinationSame: body.destinationSame === true,
+    destinationOther: String(body.destinationOther || "").slice(0, 500),
+    budget: String(body.budget || "").slice(0, 30),
+    budgetCurrency: String(body.budgetCurrency || "EUR").slice(0, 10),
+    adults: Math.max(0, Math.min(20, parseInt(body.adults, 10) || 0)),
+    children: Math.max(0, Math.min(20, parseInt(body.children, 10) || 0)),
+    priorities: Array.isArray(body.priorities)
+      ? body.priorities.filter((p) => typeof p === "string").slice(0, 20).map((p) => p.slice(0, 40))
+      : [],
+    priorityOther: String(body.priorityOther || "").slice(0, 300),
+    email,
+    consent: true
+  };
+
+  if (!NEXT_TRIP_CGI_URL) {
+    console.log("[NächsteReise] Kein NEXT_TRIP_CGI_URL konfiguriert – Anfrage nur geloggt:", JSON.stringify(payload));
+    sendJson(res, 200, { ok: true, mode: "log" });
+    return;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const headers = { "Content-Type": "application/json" };
+    if (NEXT_TRIP_CGI_TOKEN) headers.Authorization = `Bearer ${NEXT_TRIP_CGI_TOKEN}`;
+
+    const response = await fetch(NEXT_TRIP_CGI_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      throw new Error(`MidOffice CGI antwortete mit Status ${response.status}`);
+    }
+
+    sendJson(res, 200, { ok: true, mode: "live" });
+  } catch (err) {
+    // Wie bei den übrigen Live-Integrationen bekommt der Nutzer keinen
+    // technischen Fehler zu sehen – die Anfrage ist serverseitig geloggt,
+    // das Büro kann bei Bedarf manuell nachfassen (siehe Kommentar bei
+    // NEXT_TRIP_CGI_URL weiter oben).
+    console.error("[NächsteReise] Push ans MidOffice CGI fehlgeschlagen, Anfrage wurde geloggt:", err.message, JSON.stringify(payload));
+    sendJson(res, 200, { ok: true, mode: "log-fallback" });
+  }
+}
+
 function serveStatic(pathname, res) {
   let filePath = pathname === "/" ? "/index.html" : pathname;
   // Path-Traversal verhindern und auf PUBLIC_DIR beschränken
@@ -538,4 +690,7 @@ server.listen(PORT, () => {
   console.log(WHATSAPP_OFFICE_NUMBER
     ? "WhatsApp-Kontakt: WHATSAPP_OFFICE_NUMBER als Fallback konfiguriert (genutzt, falls MyOffice.whatsapp nicht geliefert wird)."
     : "WhatsApp-Kontakt: WHATSAPP_OFFICE_NUMBER nicht gesetzt – nur MyOffice.whatsapp (falls von GetOffice geliefert) aktiviert den Button.");
+  console.log(NEXT_TRIP_CGI_URL
+    ? `Nächste Reise: Push ans MidOffice CGI aktiv (${NEXT_TRIP_CGI_URL}).`
+    : "Nächste Reise: NEXT_TRIP_CGI_URL nicht gesetzt – Anfragen werden nur serverseitig geloggt.");
 });

@@ -217,7 +217,12 @@
     // Kreuzfahrttagen) das Ergebnis (oder "loading"/"error") zwischen-
     // speichern, damit ein Tageswechsel hin und her nicht jedes Mal neu vom
     // Server lädt.
-    placesCache: new Map()
+    placesCache: new Map(),
+    // "Nächste Reise" – Absende-Status des Formulars (siehe renderNextTrip()):
+    // "submitting" blendet den Button auf "Wird gesendet …" um, "submitted"
+    // zeigt die Dankeseite statt des Formulars, "error" eine Inline-Meldung
+    // (Formularwerte bleiben dabei erhalten, siehe submitNextTripForm()).
+    nextTrip: { submitting: false, submitted: false, error: null }
   };
 
   // Merkt sich die zuletzt geladene travelID lokal im Browser. Grund: Wird
@@ -379,6 +384,16 @@
     if (daysBetween(today, checkin) > 0) return "upcoming";
     if (checkout && daysBetween(today, checkout) >= 0) return "ongoing";
     return "ended";
+  }
+
+  // "Nächste Reise" (siehe TODO.md) – Gutschein-Flag aus GetReiseData.
+  // ACHTUNG: "voucherAmount" ist ein Platzhalter-Feldname (siehe Kommentar
+  // in demoData.js) – der tatsächliche Feldname ist noch nicht bestätigt.
+  // Wie travelPrice eine Ganzzahl in Eurocent; 0/fehlend => kein Gutschein.
+  function nextTripVoucherAmount() {
+    const grund = state.data.ReiseGrund || {};
+    const n = Number(grund.voucherAmount);
+    return Number.isFinite(n) && n > 0 ? n : 0;
   }
 
   function verlaufForDay(dayKeyStr) {
@@ -599,6 +614,8 @@
           }).join("")}
         </div>
       </div>` : ""}
+
+      ${status === "ended" ? renderNextTripEntry() : ""}
     `;
 
     // Bewusst per direktem DOM-Toggle statt renderOverview() erneut
@@ -629,6 +646,33 @@
     // dass dafür die ganze Overview neu gerendert werden müsste (gleiches
     // Prinzip wie beim Alarm-Banner oben).
     renderInstallBanner();
+  }
+
+  // "Nächste Reise" – Einsprung auf der Startseite, nur bei bereits
+  // beendeten Reisen (siehe tripStatus() bei renderOverview()). Nutzt wie
+  // die Angebots-Mini-Cards oben data-goto="nexttrip" statt eines eigenen
+  // Klick-Handlers – die [data-goto]-Buttons werden ohnehin schon einmalig
+  // in renderAll() gebunden (siehe dortigen Kommentar), das gilt auch für
+  // diesen Button, da renderOverview() vor dieser Bindung läuft.
+  function renderNextTripEntry() {
+    const voucher = nextTripVoucherAmount();
+    const grund = state.data.ReiseGrund || {};
+    const text = voucher
+      ? I18N.t("nexttrip.entryTextVoucher", { amount: escapeHtml(fmtPriceFromCents(voucher, grund.travelCurrency)) })
+      : I18N.t("nexttrip.entryText");
+
+    return `
+      <div class="next-trip-card">
+        <div class="next-trip-card-icon">${icon("suitcase", 19)}</div>
+        <div class="next-trip-card-body">
+          <div class="next-trip-card-title">${I18N.t("nexttrip.entryTitle")}</div>
+          <div class="next-trip-card-text">${text}</div>
+          <button type="button" class="btn-primary" data-goto="nexttrip">
+            ${I18N.t("nexttrip.entryCta")} ${icon("arrowRight", 15)}
+          </button>
+        </div>
+      </div>
+    `;
   }
 
   // ---------- "Zum Home-Bildschirm hinzufügen" ----------
@@ -1944,6 +1988,246 @@
     `;
   }
 
+  // ---------- View: "Nächste Reise" ----------
+  //
+  // Eigene Unterseite (view-nexttrip), nur per Einsprung von der Startseite
+  // erreichbar (renderNextTripEntry(), nur wenn die aktuelle Reise beendet
+  // ist), kein eigener Bottom-Nav-Eintrag – analog zu Hotel-/Kreuzfahrt-
+  // Details. Sammelt Reisewünsche für ein Folgeangebot und schickt sie an
+  // /api/naechste-reise (siehe server.js handleNextTripRequest – pusht,
+  // sofern konfiguriert, ans MidOffice-CGI, sonst Log-Fallback ohne
+  // Fehleranzeige für den Nutzer).
+  //
+  // Bewusst ein einzelnes, durchgehendes Formular statt eines mehrstufigen
+  // Assistenten: passt zum Rest der App (jede Ansicht wird als Ganzes
+  // gerendert), ist robuster (keine verlorenen Eingaben beim Zurückgehen)
+  // und kommt ohne zusätzlichen Navigations-/Validierungs-Code pro Schritt
+  // aus.
+
+  function renderNextTrip() {
+    const container = document.getElementById("view-nexttrip");
+    const grund = state.data.ReiseGrund || {};
+    const voucher = nextTripVoucherAmount();
+    const voucherAmountF = voucher ? fmtPriceFromCents(voucher, grund.travelCurrency) : "";
+    const nt = state.nextTrip;
+
+    if (nt.submitted) {
+      container.innerHTML = `
+        <div class="next-trip-page">
+          <div class="next-trip-success">
+            ${icon("checkCircle", 34)}
+            <div class="greeting-name" style="font-size:18px;">${I18N.t("nexttrip.successTitle")}</div>
+            <p>${I18N.t("nexttrip.successText")}</p>
+            ${voucher ? `<p class="next-trip-voucher-note">${icon("gift", 15)} ${I18N.t("nexttrip.successVoucherNote", { amount: escapeHtml(voucherAmountF) })}</p>` : ""}
+            <button type="button" class="btn-primary" data-back="overview">${I18N.t("nexttrip.backToOverview")}</button>
+          </div>
+        </div>
+      `;
+      container.querySelectorAll("[data-back]").forEach((btn) => {
+        btn.addEventListener("click", () => showView(btn.dataset.back));
+      });
+      return;
+    }
+
+    const destination = escapeHtml(grund.travelRegionText || grund.travelTitle || "");
+
+    container.innerHTML = `
+      <button class="back-link" data-back="overview">${icon("chevronLeft", 16)} ${I18N.t("nexttrip.back")}</button>
+
+      <div class="next-trip-page">
+        <div>
+          <div class="greeting-name" style="font-size:20px;">${I18N.t("nexttrip.title")}</div>
+          <p class="next-trip-intro">${I18N.t("nexttrip.intro")}</p>
+        </div>
+
+        ${voucher ? `<div class="next-trip-voucher-note">${icon("gift", 15)} ${I18N.t("nexttrip.voucherNote", { amount: escapeHtml(voucherAmountF) })}</div>` : ""}
+
+        <form id="nextTripForm" class="next-trip-form" novalidate>
+
+          <div class="form-section">
+            <label class="form-label">${I18N.t("nexttrip.periodLabel")}</label>
+            <div class="form-radio-row">
+              <label><input type="radio" name="periodType" value="exact" checked> ${I18N.t("nexttrip.periodExact")}</label>
+              <label><input type="radio" name="periodType" value="flexible"> ${I18N.t("nexttrip.periodFlexible")}</label>
+            </div>
+            <div id="periodExactFields" class="form-row-2">
+              <div>
+                <label class="form-label-sm" for="ntPeriodFrom">${I18N.t("nexttrip.periodFrom")}</label>
+                <input type="date" id="ntPeriodFrom" name="periodFrom">
+              </div>
+              <div>
+                <label class="form-label-sm" for="ntPeriodTo">${I18N.t("nexttrip.periodTo")}</label>
+                <input type="date" id="ntPeriodTo" name="periodTo">
+              </div>
+            </div>
+            <div id="periodFlexibleFields" hidden>
+              <input type="text" id="ntPeriodFlexible" name="periodFlexible" placeholder="${I18N.t("nexttrip.periodFlexibleHint")}">
+            </div>
+          </div>
+
+          <div class="form-section">
+            <label class="form-label">${I18N.t("nexttrip.destinationLabel")}</label>
+            ${destination ? `
+            <label class="form-check">
+              <input type="checkbox" id="ntDestinationSame" name="destinationSame">
+              ${I18N.t("nexttrip.destinationSame", { destination })}
+            </label>` : ""}
+            <input type="text" id="ntDestinationOther" name="destinationOther" placeholder="${I18N.t("nexttrip.destinationOtherHint")}">
+          </div>
+
+          <div class="form-section">
+            <label class="form-label" for="ntBudget">${I18N.t("nexttrip.budgetLabel")}</label>
+            <input type="number" id="ntBudget" name="budget" min="0" step="50" inputmode="numeric" placeholder="${I18N.t("nexttrip.budgetHint")}">
+          </div>
+
+          <div class="form-section">
+            <label class="form-label">${I18N.t("nexttrip.travelersLabel")}</label>
+            <div class="form-row-2">
+              <div>
+                <label class="form-label-sm" for="ntAdults">${I18N.t("nexttrip.adultsLabel")}</label>
+                <input type="number" id="ntAdults" name="adults" min="1" max="20" value="2" inputmode="numeric">
+              </div>
+              <div>
+                <label class="form-label-sm" for="ntChildren">${I18N.t("nexttrip.childrenLabel")}</label>
+                <input type="number" id="ntChildren" name="children" min="0" max="20" value="0" inputmode="numeric">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <label class="form-label">${I18N.t("nexttrip.prioritiesLabel")}</label>
+            <div class="form-check-grid">
+              <label class="form-check"><input type="checkbox" name="priorities" value="beach"> ${I18N.t("nexttrip.priorityBeach")}</label>
+              <label class="form-check"><input type="checkbox" name="priorities" value="sun"> ${I18N.t("nexttrip.prioritySun")}</label>
+              <label class="form-check"><input type="checkbox" name="priorities" value="mountains"> ${I18N.t("nexttrip.priorityMountains")}</label>
+              <label class="form-check"><input type="checkbox" name="priorities" value="sea"> ${I18N.t("nexttrip.prioritySea")}</label>
+              <label class="form-check"><input type="checkbox" name="priorities" value="culture"> ${I18N.t("nexttrip.priorityCulture")}</label>
+              <label class="form-check"><input type="checkbox" name="priorities" value="relax"> ${I18N.t("nexttrip.priorityRelax")}</label>
+              <label class="form-check"><input type="checkbox" name="priorities" value="active"> ${I18N.t("nexttrip.priorityActive")}</label>
+              <label class="form-check"><input type="checkbox" name="priorities" value="allInclusive"> ${I18N.t("nexttrip.priorityAllInclusive")}</label>
+            </div>
+            <input type="text" id="ntPriorityOther" name="priorityOther" placeholder="${I18N.t("nexttrip.priorityOtherHint")}">
+          </div>
+
+          <div class="form-section">
+            <label class="form-label" for="ntEmail">${I18N.t("nexttrip.emailLabel")}</label>
+            <input type="email" id="ntEmail" name="email" required placeholder="${I18N.t("nexttrip.emailHint")}">
+          </div>
+
+          <div class="form-section">
+            <label class="form-check">
+              <input type="checkbox" id="ntConsent" name="consent" required>
+              ${I18N.t("nexttrip.consentLabel")}
+            </label>
+          </div>
+
+          <div id="nextTripFormError" class="error-box" ${nt.error ? "" : "hidden"}>${nt.error ? escapeHtml(nt.error) : ""}</div>
+
+          <button type="submit" class="btn-primary" id="nextTripSubmitBtn" ${nt.submitting ? "disabled" : ""}>
+            ${nt.submitting ? I18N.t("nexttrip.submitting") : I18N.t("nexttrip.submit")}
+          </button>
+        </form>
+      </div>
+    `;
+
+    container.querySelectorAll("[data-back]").forEach((btn) => {
+      btn.addEventListener("click", () => showView(btn.dataset.back));
+    });
+
+    // Umschalten zwischen genauem und ungefährem Zeitraum – reines DOM-
+    // Toggle statt Re-Render, damit bereits eingegebene Werte in den
+    // anderen Feldern erhalten bleiben (gleiches Prinzip wie beim Alarm-
+    // Banner in renderOverview()).
+    const exactFields = container.querySelector("#periodExactFields");
+    const flexibleFields = container.querySelector("#periodFlexibleFields");
+    container.querySelectorAll('input[name="periodType"]').forEach((radio) => {
+      radio.addEventListener("change", () => {
+        const isFlexible = container.querySelector('input[name="periodType"]:checked').value === "flexible";
+        exactFields.hidden = isFlexible;
+        flexibleFields.hidden = !isFlexible;
+      });
+    });
+
+    container.querySelector("#nextTripForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      submitNextTripForm(container);
+    });
+  }
+
+  async function submitNextTripForm(container) {
+    const grund = state.data.ReiseGrund || {};
+    const emailInput = container.querySelector("#ntEmail");
+    const consentInput = container.querySelector("#ntConsent");
+    const errorBox = container.querySelector("#nextTripFormError");
+    const submitBtn = container.querySelector("#nextTripSubmitBtn");
+
+    const email = emailInput.value.trim();
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+    // Client-seitige Validierung nur für die beiden Pflichtfelder (E-Mail +
+    // Einverständnis) – server.js validiert dieselben zwei Felder zusätzlich
+    // serverseitig (siehe handleNextTripRequest), alle anderen Angaben sind
+    // freiwillig.
+    if (!emailValid) {
+      errorBox.textContent = I18N.t("nexttrip.emailRequired");
+      errorBox.hidden = false;
+      emailInput.focus();
+      return;
+    }
+    if (!consentInput.checked) {
+      errorBox.textContent = I18N.t("nexttrip.consentRequired");
+      errorBox.hidden = false;
+      consentInput.focus();
+      return;
+    }
+
+    errorBox.hidden = true;
+    submitBtn.disabled = true;
+    submitBtn.textContent = I18N.t("nexttrip.submitting");
+
+    const periodType = container.querySelector('input[name="periodType"]:checked').value;
+    const priorities = Array.from(container.querySelectorAll('input[name="priorities"]:checked')).map((el) => el.value);
+
+    const payload = {
+      travelID: state.travelID || "",
+      periodType,
+      periodFrom: container.querySelector("#ntPeriodFrom").value,
+      periodTo: container.querySelector("#ntPeriodTo").value,
+      periodFlexible: container.querySelector("#ntPeriodFlexible").value.trim(),
+      destinationSame: (container.querySelector("#ntDestinationSame") || {}).checked === true,
+      destinationOther: container.querySelector("#ntDestinationOther").value.trim(),
+      budget: container.querySelector("#ntBudget").value,
+      budgetCurrency: grund.travelCurrency || "EUR",
+      adults: container.querySelector("#ntAdults").value,
+      children: container.querySelector("#ntChildren").value,
+      priorities,
+      priorityOther: container.querySelector("#ntPriorityOther").value.trim(),
+      email,
+      consent: true
+    };
+
+    try {
+      const response = await fetch("/api/naechste-reise", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const json = await response.json().catch(() => ({}));
+      if (!response.ok || !json.ok) {
+        throw new Error(json.error || `Status ${response.status}`);
+      }
+      state.nextTrip = { submitting: false, submitted: true, error: null };
+      renderNextTrip();
+      document.getElementById("views").scrollTop = 0;
+    } catch (err) {
+      console.error("[NächsteReise] Absenden fehlgeschlagen:", err.message);
+      submitBtn.disabled = false;
+      submitBtn.textContent = I18N.t("nexttrip.submit");
+      errorBox.textContent = I18N.t("nexttrip.errorGeneric");
+      errorBox.hidden = false;
+    }
+  }
+
   // ---------- Navigation ----------
 
   function renderAll() {
@@ -1953,6 +2237,7 @@
     renderDocs();
     renderOffice();
     renderPrice();
+    renderNextTrip();
     showView(state.activeView);
 
     document.querySelectorAll("[data-goto]").forEach((el) => {

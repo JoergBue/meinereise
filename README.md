@@ -47,6 +47,8 @@ Alle Zugangsdaten für die BOSYS-Schnittstelle stehen ausschließlich in
 | `BOSYS_OFFICE_TOKEN` | GetOffice.Token (der "HashKey") für den Bereich "Mein Reisebüro" – unabhängig von `BOSYS_SESSION_ID`/travelID |
 | `GOOGLE_PLACES_API_KEY` | API-Key für "In der Nähe" (Google Places API "New") – unabhängig von BOSYS |
 | `WHATSAPP_OFFICE_NUMBER` | WhatsApp-Nummer des Büros für den Kontakt-Button in "Mein Reisebüro" – unabhängig von BOSYS |
+| `NEXT_TRIP_CGI_URL`  | Endpunkt des MidOffice-CGI für "Nächste Reise" (POST, JSON) – unabhängig von BOSYS_GATEWAY_URL |
+| `NEXT_TRIP_CGI_TOKEN` | optionales Bearer-Token für `NEXT_TRIP_CGI_URL`         |
 | `PORT`               | lokaler Port, Standard `3000`                           |
 
 Zwingend für den Live-Modus sind nur `BOSYS_GATEWAY_URL` und
@@ -86,6 +88,26 @@ Variable fällt der Button auf `MyOffice.phone` zurück, was oft eine normale
 Festnetznummer und damit nicht WhatsApp-fähig ist. Format ist beliebig
 (mit/ohne `+`, mit/ohne führende `00`/`0`) – wird automatisch normalisiert.
 
+"Nächste Reise" (Einsprung auf der Startseite, nur sichtbar bei bereits
+beendeten Reisen) sammelt in einem Formular Reisewünsche (Zeitraum, Ziel,
+Budget, Personen, Prioritäten, E-Mail, Einverständniserklärung) und schickt
+sie per POST an `/api/naechste-reise`. Ist `NEXT_TRIP_CGI_URL` gesetzt, wird
+die Anfrage ans dortige MidOffice-CGI gepusht (optional mit
+`NEXT_TRIP_CGI_TOKEN` als Bearer-Token); ohne diesen Wert – oder wenn der
+Push fehlschlägt – wird die Anfrage nur in der Server-Konsole geloggt, dem
+Nutzer aber trotzdem eine Erfolgsmeldung angezeigt (gleiches Prinzip wie bei
+den übrigen Integrationen: kein technischer Fehler für etwas, das der Nutzer
+nicht beheben kann). Ist in `ReiseGrund` ein Gutschein-Betrag hinterlegt
+(> 0), wird zusätzlich auf dessen Einlösung bei der nächsten Buchung im
+Reisebüro hingewiesen.
+
+> **Platzhalter-Feldname:** Der Gutschein-Betrag wird aktuell über
+> `ReiseGrund.voucherAmount` gelesen (Eurocent, analog zu `travelPrice`) –
+> das ist ein selbst gewählter Platzhalter, der tatsächliche Feldname, den
+> `GetReiseData` dafür liefert, ist noch nicht bestätigt. Sobald das
+> MidOffice-Team den echten Namen nennt, ist er in `demoData.js` und
+> `nextTripVoucherAmount()` (`public/app.js`) anzupassen.
+
 ## Deployment auf Hostinger (hPanel, Node.js-App)
 
 Voraussetzung: Die Subdomain `meinereise.trueluff.de` existiert bereits bei
@@ -119,6 +141,8 @@ Hostinger. Die App liegt komplett in diesem GitHub-Repository
    BOSYS_OFFICE_TOKEN=<HashKey für Mein Reisebüro, falls vorhanden>
    GOOGLE_PLACES_API_KEY=<Google-Places-API-Key, falls vorhanden>
    WHATSAPP_OFFICE_NUMBER=<WhatsApp-Nummer des Büros, falls vorhanden>
+   NEXT_TRIP_CGI_URL=<Endpunkt des MidOffice-CGI für "Nächste Reise", falls vorhanden>
+   NEXT_TRIP_CGI_TOKEN=<Bearer-Token dafür, falls vorhanden>
    ```
 
    `PORT` nicht selbst setzen – Hostinger gibt den Port über die Umgebung
