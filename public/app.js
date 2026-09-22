@@ -74,13 +74,22 @@
     return date;
   }
 
-  const DOW = ["SO", "MO", "DI", "MI", "DO", "FR", "SA"];
+  // Kurzform des Wochentags für die Tages-Tabs im Reiseplan (siehe dow0..6
+  // in i18n.js, Index 0 = Sonntag wie bei Date.getDay()).
+  function dowShort(dayIndex) {
+    return I18N.t(`dow${dayIndex}`);
+  }
+
   const pad2 = (n) => String(n).padStart(2, "0");
 
+  // Datumsformat ist sprachabhängig (z.B. "03.10.2026" auf Deutsch,
+  // "03/10/2026" auf Englisch) – über Intl.DateTimeFormat und die aktuell
+  // gewählte Sprache (I18N.localeTag()), damit hier keine Formate von Hand
+  // nachgebaut werden müssen.
   function fmtDate(s) {
     const d = parseYYYYMMDD(s);
     if (!d) return "";
-    return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
+    return new Intl.DateTimeFormat(I18N.localeTag(), { day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
   }
 
   function fmtTime(s) {
@@ -245,7 +254,9 @@
     state.travelID = getTravelIDFromURL();
 
     if (!state.travelID) {
-      renderFatalError("Keine travelID übergeben. Aufruf-Format: <code>" + window.location.origin + window.location.pathname + "#&lt;travelID&gt;</code>");
+      renderFatalError(I18N.t("app.noTravelId", {
+        example: "<code>" + window.location.origin + window.location.pathname + "#&lt;travelID&gt;</code>"
+      }));
       return;
     }
     rememberTravelID(state.travelID);
@@ -287,7 +298,7 @@
 
       renderAll();
     } catch (err) {
-      renderFatalError("Reisedaten konnten nicht geladen werden: " + err.message);
+      renderFatalError(I18N.t("app.loadError", { message: err.message }));
     }
   }
 
@@ -297,15 +308,21 @@
 
   // ---------- Ableitungen aus ReiseVerlauf ----------
 
+  // Nur noch das Icon je Typ – die Bezeichnung kommt sprachabhängig über
+  // I18N.t("verlaufType." + type) aus i18n.js (siehe verlaufTypeLabel()).
   const VERLAUF_META = {
-    F: { icon: "plane", label: "Flug" },
-    H: { icon: "bed", label: "Hotel" },
-    T: { icon: "bus", label: "Transfer" },
-    M: { icon: "car", label: "Mietwagen" },
-    C: { icon: "boat", label: "Kreuzfahrt" },
-    V: { icon: "shield", label: "Versicherung" },
-    S: { icon: "mountain", label: "Sonstiges" }
+    F: { icon: "plane" },
+    H: { icon: "bed" },
+    T: { icon: "bus" },
+    M: { icon: "car" },
+    C: { icon: "boat" },
+    V: { icon: "shield" },
+    S: { icon: "mountain" }
   };
+
+  function verlaufTypeLabel(type) {
+    return VERLAUF_META[type] ? I18N.t("verlaufType." + type) : type;
+  }
 
   function verlaufList() {
     // Die API liefert gelegentlich leere Platzhalter-Objekte ({}) im Array,
@@ -324,7 +341,7 @@
       if (seen.has(item.type)) return;
       seen.add(item.type);
       const meta = VERLAUF_META[item.type];
-      if (meta) chips.push(meta);
+      if (meta) chips.push({ icon: meta.icon, type: item.type });
     });
     return chips;
   }
@@ -447,9 +464,9 @@
     let countdown = "";
     if (checkin) {
       const diff = daysBetween(today, checkin);
-      if (diff > 0) countdown = `Noch ${diff} ${diff === 1 ? "Tag" : "Tage"}`;
-      else if (checkout && daysBetween(today, checkout) >= 0) countdown = "Reise läuft";
-      else countdown = "Reise beendet";
+      if (diff > 0) countdown = I18N.tCount("overview.daysLeft", diff);
+      else if (checkout && daysBetween(today, checkout) >= 0) countdown = I18N.t("overview.tripOngoing");
+      else countdown = I18N.t("overview.tripEnded");
     }
 
     const nights = checkin && checkout ? daysBetween(checkin, checkout) : null;
@@ -469,11 +486,11 @@
     document.getElementById("view-overview").innerHTML = `
       <div class="greeting-row">
         <div>
-          <div class="greeting-eyebrow">Willkommen zurück</div>
-          <div class="greeting-name">Deine Reise</div>
+          <div class="greeting-eyebrow">${I18N.t("overview.welcomeBack")}</div>
+          <div class="greeting-name">${I18N.t("overview.yourTrip")}</div>
         </div>
         ${alarmText
-          ? `<button type="button" class="avatar avatar-alarm" data-alarm-toggle aria-label="Meldung anzeigen">${icon("bell", 19)}</button>`
+          ? `<button type="button" class="avatar avatar-alarm" data-alarm-toggle aria-label="${I18N.t("overview.showAlert")}">${icon("bell", 19)}</button>`
           : `<div class="avatar">${icon("bell", 19)}</div>`}
       </div>
 
@@ -481,7 +498,7 @@
       <div class="alarm-banner" ${state.showAlarm ? "" : "hidden"}>
         <div class="alarm-banner-icon">${icon("bell", 15)}</div>
         <div class="alarm-banner-text">${escapeHtml(alarmText)}</div>
-        <button type="button" class="alarm-banner-close" data-alarm-close aria-label="Schließen">${icon("close", 14)}</button>
+        <button type="button" class="alarm-banner-close" data-alarm-close aria-label="${I18N.t("overview.close")}">${icon("close", 14)}</button>
       </div>` : ""}
 
       <div id="installBannerHolder"></div>
@@ -497,32 +514,32 @@
           <div>
             <div class="hero-title">${escapeHtml(grund.travelTitle || "")}</div>
             <div class="hero-sub">${escapeHtml(grund.travelRegionText || "")}</div>
-            <div class="hero-sub">${fmtDate(grund.checkinDate)} – ${fmtDate(grund.checkoutDate)}${nights != null ? ` · ${nights} Nächte` : ""}</div>
+            <div class="hero-sub">${fmtDate(grund.checkinDate)} – ${fmtDate(grund.checkoutDate)}${nights != null ? ` · ${I18N.tCount("overview.nights", nights)}` : ""}</div>
           </div>
           <div class="hero-meta">
-            ${grund.travelers ? `<div class="hero-meta-item">${icon("users", 16)} ${escapeHtml(grund.travelers)} Personen</div>` : ""}
-            ${nights != null ? `<div class="hero-meta-item">${icon("calendar", 16)} ${nights} Nächte</div>` : ""}
+            ${grund.travelers ? `<div class="hero-meta-item">${icon("users", 16)} ${I18N.t("overview.travelers", { n: escapeHtml(grund.travelers) })}</div>` : ""}
+            ${nights != null ? `<div class="hero-meta-item">${icon("calendar", 16)} ${I18N.tCount("overview.nights", nights)}</div>` : ""}
             ${price ? `<div class="hero-meta-item">${icon("receipt", 16)} ${escapeHtml(price)}</div>` : ""}
           </div>
         </div>
       </div>
 
-      ${office ? `<div class="agency-info">Vermittelt durch <strong>${escapeHtml(office.name)}</strong>, ${escapeHtml(office.address)}</div>` : ""}
+      ${office ? `<div class="agency-info">${I18N.t("overview.mediatedBy", { name: `<strong>${escapeHtml(office.name)}</strong>`, address: escapeHtml(office.address) })}</div>` : ""}
 
       ${chips.length ? `
       <div class="status-row">
-        ${chips.map((c) => `<div class="status-chip">${icon("checkCircle", 14)} ${c.label}</div>`).join("")}
+        ${chips.map((c) => `<div class="status-chip">${icon("checkCircle", 14)} ${I18N.t("verlaufType." + c.type)}</div>`).join("")}
       </div>` : ""}
 
       <button class="btn-primary" data-goto="plan">
-        Reiseplan ansehen ${icon("arrowRight", 16)}
+        ${I18N.t("overview.viewPlan")} ${icon("arrowRight", 16)}
       </button>
 
       ${offers.length ? `
       <div style="display:flex;flex-direction:column;gap:12px;">
         <div class="section-head">
-          <div class="section-title">Für dich empfohlen</div>
-          <button class="section-link" data-goto="offers">Alle ansehen</button>
+          <div class="section-title">${I18N.t("overview.recommendedForYou")}</div>
+          <button class="section-link" data-goto="offers">${I18N.t("overview.seeAll")}</button>
         </div>
         <div class="mini-cards">
           ${offers.map((o) => {
@@ -534,11 +551,11 @@
             return url
               ? `<a class="mini-card" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">
                   <div class="mini-card-icon">${icon(offerIcon(o), 16)}</div>
-                  <div class="mini-card-title">${escapeHtml(o.headline || "")}</div>
+                  <div class="mini-card-title">${escapeHtml(offerTitle(o))}</div>
                 </a>`
               : `<div class="mini-card" data-goto="offers">
                   <div class="mini-card-icon">${icon(offerIcon(o), 16)}</div>
-                  <div class="mini-card-title">${escapeHtml(o.headline || "")}</div>
+                  <div class="mini-card-title">${escapeHtml(offerTitle(o))}</div>
                 </div>`;
           }).join("")}
         </div>
@@ -629,11 +646,11 @@
         <div class="install-banner">
           <div class="install-banner-icon">${icon("download", 16)}</div>
           <div class="install-banner-text">
-            <strong>App installieren</strong>
-            Schneller Zugriff auf deinen Reiseplan direkt vom Home-Bildschirm.
+            <strong>${I18N.t("install.appTitle")}</strong>
+            ${I18N.t("install.appDesc")}
           </div>
-          <button type="button" class="install-banner-btn" data-install-action>Installieren</button>
-          <button type="button" class="install-banner-close" data-install-dismiss aria-label="Schließen">${icon("close", 14)}</button>
+          <button type="button" class="install-banner-btn" data-install-action>${I18N.t("install.appBtn")}</button>
+          <button type="button" class="install-banner-close" data-install-dismiss aria-label="${I18N.t("install.close")}">${icon("close", 14)}</button>
         </div>`;
       const actionBtn = holder.querySelector("[data-install-action]");
       if (actionBtn) {
@@ -650,10 +667,10 @@
         <div class="install-banner">
           <div class="install-banner-icon">${icon("download", 16)}</div>
           <div class="install-banner-text">
-            <strong>Zum Home-Bildschirm hinzufügen</strong>
-            Tippe unten auf ${icon("share", 12)} „Teilen“ und dann auf „Zum Home-Bildschirm“.
+            <strong>${I18N.t("install.iosTitle")}</strong>
+            ${I18N.t("install.iosDesc", { shareIcon: icon("share", 12) })}
           </div>
-          <button type="button" class="install-banner-close" data-install-dismiss aria-label="Schließen">${icon("close", 14)}</button>
+          <button type="button" class="install-banner-close" data-install-dismiss aria-label="${I18N.t("install.close")}">${icon("close", 14)}</button>
         </div>`;
     } else {
       holder.innerHTML = "";
@@ -726,16 +743,16 @@
       if (!cached) loadNearbyPlaces(lat, lon, key);
       return `
         <div class="places-section">
-          <div class="places-title">${icon("pin", 15)} In der Nähe</div>
-          <div class="places-loading">Wird geladen …</div>
+          <div class="places-title">${icon("pin", 15)} ${I18N.t("places.nearby")}</div>
+          <div class="places-loading">${I18N.t("places.loading")}</div>
         </div>`;
     }
 
     if (cached === "error") {
       return `
         <div class="places-section">
-          <div class="places-title">${icon("pin", 15)} In der Nähe</div>
-          <div class="places-loading">Empfehlungen konnten gerade nicht geladen werden.</div>
+          <div class="places-title">${icon("pin", 15)} ${I18N.t("places.nearby")}</div>
+          <div class="places-loading">${I18N.t("places.loadError")}</div>
         </div>`;
     }
 
@@ -744,9 +761,9 @@
 
     return `
       <div class="places-section">
-        <div class="places-title">${icon("pin", 15)} In der Nähe</div>
-        ${restaurants.length ? renderPlacesRow("Restaurants", "utensils", restaurants) : ""}
-        ${attractions.length ? renderPlacesRow("Sehenswürdigkeiten", "mountain", attractions) : ""}
+        <div class="places-title">${icon("pin", 15)} ${I18N.t("places.nearby")}</div>
+        ${restaurants.length ? renderPlacesRow(I18N.t("places.restaurants"), "utensils", restaurants) : ""}
+        ${attractions.length ? renderPlacesRow(I18N.t("places.attractions"), "mountain", attractions) : ""}
         ${hinweis ? `<div class="places-hinweis">${escapeHtml(hinweis)}</div>` : ""}
       </div>`;
   }
@@ -760,14 +777,14 @@
 
     document.getElementById("view-plan").innerHTML = `
       <div>
-        <div class="greeting-name" style="font-size:22px;">Reiseplan</div>
+        <div class="greeting-name" style="font-size:22px;">${I18N.t("plan.title")}</div>
         <div class="hero-sub">${escapeHtml((state.data.ReiseGrund || {}).travelRegionText || "")}</div>
       </div>
 
       <div class="day-tabs">
         ${days.map((d) => `
           <button class="day-tab ${d.key === state.activeDay ? "is-active" : ""}" data-day="${d.key}">
-            <span class="dow">${DOW[d.date.getDay()]}</span>
+            <span class="dow">${dowShort(d.date.getDay())}</span>
             <span class="num">${d.date.getDate()}</span>
           </button>`).join("")}
       </div>
@@ -822,12 +839,12 @@
     if (cruise) {
       const idx = verlaufList().indexOf(cruise);
       const times = cruiseStop && !cruiseStop.isSeaDay
-        ? [cruiseStop.arrival ? `an ${cruiseStop.arrival}` : "", cruiseStop.departure ? `ab ${cruiseStop.departure}` : ""].filter(Boolean).join(" · ")
+        ? [cruiseStop.arrival ? I18N.t("plan.at", { time: cruiseStop.arrival }) : "", cruiseStop.departure ? I18N.t("plan.from", { time: cruiseStop.departure }) : ""].filter(Boolean).join(" · ")
         : "";
       const title = cruiseStop
-        ? (cruiseStop.isSeaDay ? "Seetag" : `Im Hafen: ${escapeHtml(cruiseStop.port || "")}`)
-        : escapeHtml(cruise.cruiseShipName || "Kreuzfahrt");
-      const sub = [escapeHtml(cruise.cruiseShipName || ""), times].filter(Boolean).join(" · ") || "Zur Kreuzfahrt";
+        ? (cruiseStop.isSeaDay ? I18N.t("plan.seaDay") : I18N.t("plan.inPort", { port: escapeHtml(cruiseStop.port || "") }))
+        : escapeHtml(cruise.cruiseShipName || I18N.t("hotel.cruiseFallback"));
+      const sub = [escapeHtml(cruise.cruiseShipName || ""), times].filter(Boolean).join(" · ") || I18N.t("plan.toCruise");
       contextCard = `
         <div class="timeline-card is-clickable" data-verlauf-idx="${idx}">
           ${icon(isSeaDay ? "boat" : "pin", 17)}
@@ -843,8 +860,8 @@
         <div class="timeline-card is-clickable" data-verlauf-idx="${idx}">
           ${icon("suitcase", 17)}
           <div>
-            <div class="timeline-card-title">Du bist im ${escapeHtml(hotel.hotelName || "Hotel")}</div>
-            <div class="timeline-card-sub">${[hotel.roomCategoryName, hotel.mealsCategoryName].filter(Boolean).map(escapeHtml).join(" · ") || "Kein festes Programm an diesem Tag"}</div>
+            <div class="timeline-card-title">${I18N.t("plan.stayingAt", { hotel: escapeHtml(hotel.hotelName || I18N.t("plan.hotelFallback")) })}</div>
+            <div class="timeline-card-sub">${[hotel.roomCategoryName, hotel.mealsCategoryName].filter(Boolean).map(escapeHtml).join(" · ") || I18N.t("plan.noFixedProgram")}</div>
           </div>
           <span class="doc-chevron">${icon("chevronRight", 16)}</span>
         </div>`;
@@ -856,12 +873,12 @@
         <div class="timeline-card">
           ${icon("car", 17)}
           <div>
-            <div class="timeline-card-title">Mietwagen unterwegs</div>
+            <div class="timeline-card-title">${I18N.t("plan.rentalCarOnTheWay")}</div>
             <div class="timeline-card-sub">${escapeHtml(rentalCar.carCategoryClass || "")}</div>
           </div>
         </div>`;
     } else {
-      contextCard = `<div class="timeline-empty">Für diesen Tag sind keine Programmpunkte hinterlegt.</div>`;
+      contextCard = `<div class="timeline-empty">${I18N.t("plan.noProgramToday")}</div>`;
     }
 
     return `
@@ -870,12 +887,12 @@
 
         ${offers.length ? `
         <div class="day-suggestions">
-          <div class="day-suggestions-title">Passend für heute</div>
+          <div class="day-suggestions-title">${I18N.t("plan.suitableToday")}</div>
           <div class="mini-cards">
             ${offers.map((o) => `
               <div class="mini-card" data-goto="offers">
                 <div class="mini-card-icon">${icon(offerIcon(o), 16)}</div>
-                <div class="mini-card-title">${escapeHtml(o.headline || "")}</div>
+                <div class="mini-card-title">${escapeHtml(offerTitle(o))}</div>
               </div>`).join("")}
           </div>
         </div>` : ""}
@@ -884,25 +901,25 @@
   }
 
   function renderTimelineRow(item, isLast, dayKeyStr) {
-    const meta = VERLAUF_META[item.type] || { icon: "mountain", label: item.type };
-    let title = meta.label;
+    const meta = VERLAUF_META[item.type] || { icon: "mountain" };
+    let title = verlaufTypeLabel(item.type);
     let sub = "";
     let time = "";
     let highlight = false;
 
     if (item.type === "F") {
-      title = `${item.flightType === "R" ? "Rückflug" : "Hinflug"} ${escapeHtml(item.flightCarrier || "")} ${escapeHtml(item.flightNumber || "")}`.trim();
+      title = `${item.flightType === "R" ? I18N.t("plan.returnFlight") : I18N.t("plan.outboundFlight")} ${escapeHtml(item.flightCarrier || "")} ${escapeHtml(item.flightNumber || "")}`.trim();
       sub = `${escapeHtml(item.departureAirportCodeTxt || item.departureAirportTxt || "")} (${escapeHtml(item.departureAirportCode || "")}) → ${escapeHtml(item.arrivalAirportCodeTxt || item.arrivalAirportTxt || "")} (${escapeHtml(item.arrivalAirportCode || "")})`;
       const dep = fmtTime(item.departureDateTime);
       const arr = fmtTime(item.arrivalDateTime);
       time = dep && arr ? `${dep} – ${arr}` : dep;
       highlight = true;
     } else if (item.type === "H") {
-      title = `Check-in · ${escapeHtml(item.hotelName || "")}`;
+      title = I18N.t("plan.checkIn", { hotel: escapeHtml(item.hotelName || "") });
       sub = [item.roomCategoryName, item.mealsCategoryName].filter(Boolean).map(escapeHtml).join(" · ");
       time = "";
     } else if (item.type === "T") {
-      title = "Transfer";
+      title = I18N.t("plan.transfer");
       sub = escapeHtml(item.text || "");
       time = "";
     } else if (item.type === "M") {
@@ -916,25 +933,25 @@
       const pickupDate = (item.pickupDateTime || "").slice(0, 8);
       const returnDate = (item.returnDateTime || "").slice(0, 8);
       const isReturn = !!dayKeyStr && dayKeyStr === returnDate && dayKeyStr !== pickupDate;
-      title = isReturn ? "Rückgabe Mietwagen" : "Abholung Mietwagen";
+      title = isReturn ? I18N.t("plan.returnCar") : I18N.t("plan.pickupCar");
       sub = escapeHtml(item.carCategoryClass || "");
       time = fmtTime(isReturn ? item.returnDateTime : item.pickupDateTime);
     } else if (item.type === "C") {
-      title = `Kreuzfahrt · ${escapeHtml(item.cruiseShipName || "")}`;
+      title = I18N.t("plan.cruiseLine", { ship: escapeHtml(item.cruiseShipName || "") });
       // Für den Zeilentag (meist der Einschiffungstag) den Routenplan-Halt
       // dieses Tages zeigen, falls cruiseRouteDet einen liefert – sonst auf
       // Kabine/Reederei zurückfallen.
       const stop = cruiseRouteStopForDay(item, item.sortDate);
       if (stop) {
         const times = !stop.isSeaDay
-          ? [stop.arrival ? `an ${stop.arrival}` : "", stop.departure ? `ab ${stop.departure}` : ""].filter(Boolean).join(" · ")
+          ? [stop.arrival ? I18N.t("plan.at", { time: stop.arrival }) : "", stop.departure ? I18N.t("plan.from", { time: stop.departure }) : ""].filter(Boolean).join(" · ")
           : "";
-        sub = [escapeHtml(stop.isSeaDay ? "Seetag" : stop.port || ""), times].filter(Boolean).join(" · ");
+        sub = [escapeHtml(stop.isSeaDay ? I18N.t("plan.seaDay") : stop.port || ""), times].filter(Boolean).join(" · ");
       } else {
         sub = [item.cruiseCabinName, item.cruiseCompany].filter(Boolean).map(escapeHtml).join(" · ") || escapeHtml(item.cruiseRoute || "");
       }
     } else if (item.type === "V") {
-      title = "Versicherung";
+      title = I18N.t("plan.insurance");
       // discription kann HTML enthalten (z.B. <br>, Links) und wird daher
       // bewusst nicht escaped, sondern wie bei den Zusatzleistungen als
       // Markup gerendert.
@@ -1022,7 +1039,7 @@
       ${stripPics.length || remaining.length ? `
       <div class="hotel-gallery-strip">
         ${stripPics.map((src) => `<img src="${escapeHtml(src)}" alt="" loading="lazy" onerror="this.remove();">`).join("")}
-        ${remaining.length ? `<button type="button" class="hotel-gallery-more" data-remaining-count="${remaining.length}">+${remaining.length}<span>weitere</span></button>` : ""}
+        ${remaining.length ? `<button type="button" class="hotel-gallery-more" data-remaining-count="${remaining.length}">+${remaining.length}<span>${I18N.t("hotel.more")}</span></button>` : ""}
       </div>` : ""}
     `;
   }
@@ -1055,7 +1072,7 @@
     const container = document.getElementById("view-hotel");
 
     if (!h) {
-      container.innerHTML = `<div class="error-box">Kein Hotel ausgewählt.</div>`;
+      container.innerHTML = `<div class="error-box">${I18N.t("hotel.noHotelSelected")}</div>`;
       return;
     }
 
@@ -1065,14 +1082,14 @@
     const subline = [h.roomCategoryName, h.mealsCategoryName].filter(Boolean).map(escapeHtml).join(" · ");
 
     container.innerHTML = `
-      <button class="back-link" data-back="plan">${icon("chevronLeft", 16)} Zurück zum Reiseplan</button>
+      <button class="back-link" data-back="plan">${icon("chevronLeft", 16)} ${I18N.t("hotel.back")}</button>
 
       <div class="hotel-detail">
         ${pics.length ? renderMediaGallery(pics) : ""}
 
         <div>
           <div class="hotel-detail-header">
-            <div class="greeting-name" style="font-size:20px;">${escapeHtml(h.hotelName || "Hotel")}</div>
+            <div class="greeting-name" style="font-size:20px;">${escapeHtml(h.hotelName || I18N.t("hotel.hotelFallback"))}</div>
             ${h.hotelStars ? `<div class="hotel-stars">${"★".repeat(Math.min(7, Math.max(0, parseInt(h.hotelStars, 10) || 0)))}</div>` : ""}
           </div>
           ${subline ? `<div class="hero-sub">${subline}</div>` : ""}
@@ -1082,8 +1099,8 @@
 
         ${mapEmbed ? `
         <div class="hotel-map">
-          <iframe src="${escapeHtml(mapEmbed)}" loading="lazy" title="Lage des Hotels" referrerpolicy="no-referrer-when-downgrade"></iframe>
-          <a class="offer-link" href="${escapeHtml(mapLink)}" target="_blank" rel="noopener noreferrer">In OpenStreetMap öffnen ${icon("externalLink", 13)}</a>
+          <iframe src="${escapeHtml(mapEmbed)}" loading="lazy" title="${I18N.t("hotel.mapTitle")}" referrerpolicy="no-referrer-when-downgrade"></iframe>
+          <a class="offer-link" href="${escapeHtml(mapLink)}" target="_blank" rel="noopener noreferrer">${I18N.t("hotel.openInOSM")} ${icon("externalLink", 13)}</a>
         </div>` : ""}
       </div>
     `;
@@ -1156,10 +1173,10 @@
 
     return `
       <div class="cruise-route">
-        <div class="day-suggestions-title">Routenplan</div>
+        <div class="day-suggestions-title">${I18N.t("plan.routePlan")}</div>
         <div class="timeline">
           ${stops.map((s, i) => {
-            const times = s.isSeaDay ? "" : [s.arrival ? `an ${s.arrival}` : "", s.departure ? `ab ${s.departure}` : ""].filter(Boolean).join(" · ");
+            const times = s.isSeaDay ? "" : [s.arrival ? I18N.t("plan.at", { time: s.arrival }) : "", s.departure ? I18N.t("plan.from", { time: s.departure }) : ""].filter(Boolean).join(" · ");
             return `
             <div class="timeline-row">
               <div class="timeline-rail">
@@ -1167,11 +1184,11 @@
                 ${i === stops.length - 1 ? "" : '<div class="timeline-line"></div>'}
               </div>
               <div class="timeline-body">
-                ${s.date ? `<div class="timeline-time">${DOW[s.date.getDay()]} ${fmtDate(dayKey(s.date))}</div>` : ""}
+                ${s.date ? `<div class="timeline-time">${dowShort(s.date.getDay())} ${fmtDate(dayKey(s.date))}</div>` : ""}
                 <div class="timeline-card">
                   ${icon(s.isSeaDay ? "boat" : "pin", 17)}
                   <div>
-                    <div class="timeline-card-title">${escapeHtml(s.isSeaDay ? "Seetag" : s.port || "Hafen")}</div>
+                    <div class="timeline-card-title">${escapeHtml(s.isSeaDay ? I18N.t("plan.seaDay") : s.port || I18N.t("plan.portFallback"))}</div>
                     ${times ? `<div class="timeline-card-sub">${escapeHtml(times)}</div>` : ""}
                   </div>
                 </div>
@@ -1188,7 +1205,7 @@
     const container = document.getElementById("view-cruise");
 
     if (!c) {
-      container.innerHTML = `<div class="error-box">Keine Kreuzfahrt ausgewählt.</div>`;
+      container.innerHTML = `<div class="error-box">${I18N.t("hotel.noCruiseSelected")}</div>`;
       return;
     }
 
@@ -1196,14 +1213,14 @@
     const subline = [c.cruiseCabinName, c.cruiseCompany].filter(Boolean).map(escapeHtml).join(" · ");
 
     container.innerHTML = `
-      <button class="back-link" data-back="plan">${icon("chevronLeft", 16)} Zurück zum Reiseplan</button>
+      <button class="back-link" data-back="plan">${icon("chevronLeft", 16)} ${I18N.t("hotel.back")}</button>
 
       <div class="hotel-detail">
         ${pics.length ? renderMediaGallery(pics) : ""}
 
         <div>
           <div class="hotel-detail-header">
-            <div class="greeting-name" style="font-size:20px;">${escapeHtml(c.cruiseShipName || "Kreuzfahrt")}</div>
+            <div class="greeting-name" style="font-size:20px;">${escapeHtml(c.cruiseShipName || I18N.t("hotel.cruiseFallback"))}</div>
           </div>
           ${subline ? `<div class="hero-sub">${subline}</div>` : ""}
         </div>
@@ -1283,6 +1300,14 @@
     return (G_CODE_META[o.type] || {}).filter || "weitere";
   }
 
+  // Titel einer Zusatzleistung: bevorzugt die anhand des G-Codes übersetzte
+  // Kategorie-Bezeichnung (siehe OFFER_TYPE_LABELS in i18n.js – nur für
+  // Codes mit gesicherter Bedeutung befüllt), sonst die Original-Headline
+  // aus der API (Deutsch) – siehe Kommentar oben bei "View: Zusatzleistungen".
+  function offerTitle(o) {
+    return I18N.offerTypeLabel(o.type) || o.headline || "";
+  }
+
   // "link" kommt in unterschiedlichen Formen: reine URL, Markdown-Link
   // "[text](ziel)" (mit oder ohne https://), reine Domain ohne Protokoll
   // (z.B. "www.auswaertigesamt.de"), oder leer (""). Fehlt das Protokoll,
@@ -1317,11 +1342,11 @@
     const offers = all.filter((o) => o.type !== "G007" && (o.headline || o.text));
 
     const filters = [
-      { id: "all", label: "Alle" },
-      { id: "mietwagen", label: "Mietwagen" },
-      { id: "versicherung", label: "Versicherung" },
-      { id: "ausfluege", label: "Ausflüge" },
-      { id: "weitere", label: "Weitere" }
+      { id: "all", label: I18N.t("offers.filterAll") },
+      { id: "mietwagen", label: I18N.t("offers.filterCarRental") },
+      { id: "versicherung", label: I18N.t("offers.filterInsurance") },
+      { id: "ausfluege", label: I18N.t("offers.filterExcursions") },
+      { id: "weitere", label: I18N.t("offers.filterOther") }
     ];
 
     const visible = offers.filter((o) => {
@@ -1331,8 +1356,8 @@
 
     document.getElementById("view-offers").innerHTML = `
       <div>
-        <div class="greeting-name" style="font-size:22px;">Zusatzleistungen</div>
-        <div class="hero-sub">Mehr aus deiner Reise machen</div>
+        <div class="greeting-name" style="font-size:22px;">${I18N.t("offers.title")}</div>
+        <div class="hero-sub">${I18N.t("offers.subtitle")}</div>
       </div>
 
       ${weather ? renderWeatherWidget(weather) : ""}
@@ -1349,13 +1374,13 @@
           <div class="offer-card">
             <div class="offer-icon">${icon(offerIcon(o), 22)}</div>
             <div style="flex:1;min-width:0;">
-              <div class="offer-title">${escapeHtml(o.headline || "")}</div>
+              <div class="offer-title">${escapeHtml(offerTitle(o))}</div>
               ${o.text ? `<div class="offer-sub offer-html">${o.text}</div>` : ""}
               ${grafik ? `<img class="offer-img" src="${escapeHtml(grafik)}" alt="" loading="lazy" onerror="this.remove()">` : ""}
-              ${url ? `<a class="offer-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">Mehr erfahren ${icon("externalLink", 13)}</a>` : ""}
+              ${url ? `<a class="offer-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${I18N.t("offers.readMore")} ${icon("externalLink", 13)}</a>` : ""}
             </div>
           </div>`;
-        }).join("") || `<div class="timeline-empty">Keine Angebote in dieser Kategorie.</div>`}
+        }).join("") || `<div class="timeline-empty">${I18N.t("offers.noneInCategory")}</div>`}
       </div>
     `;
 
@@ -1370,7 +1395,7 @@
   function renderWeatherWidget(weather) {
     return `
       <div class="weather-card">
-        <div class="weather-title">${icon("sun", 15)} ${escapeHtml(weather.headline || "Wetter")}</div>
+        <div class="weather-title">${icon("sun", 15)} ${escapeHtml(offerTitle(weather) || I18N.t("offers.weatherFallback"))}</div>
         <div class="weather-html">${weather.text || ""}</div>
       </div>`;
   }
@@ -1382,7 +1407,7 @@
   // hübsch formatiert (teils nur ein interner Referenzcode) – deshalb als
   // Haupttitel bevorzugt dokTitleText verwenden.
   function docDisplayTitle(d) {
-    return d.dokTitleText || d.dokTitle || "Dokument";
+    return d.dokTitleText || d.dokTitle || I18N.t("docs.fallback");
   }
 
   function docIcon(title) {
@@ -1415,7 +1440,7 @@
       <div class="offer-icon">${icon(docIcon(docDisplayTitle(d)), iconSize)}</div>
       <div style="flex:1;min-width:0;">
         <div class="doc-title">${escapeHtml(docDisplayTitle(d))}</div>
-        <div class="doc-sub">Erstellt am ${fmtDokDateTime(d.dokDateTime)}</div>
+        <div class="doc-sub">${I18N.t("docs.createdOn", { date: fmtDokDateTime(d.dokDateTime) })}</div>
         <div class="doc-status"></div>
       </div>`;
   }
@@ -1426,8 +1451,8 @@
 
     document.getElementById("view-docs").innerHTML = `
       <div>
-        <div class="greeting-name" style="font-size:22px;">Dokumente</div>
-        <div class="hero-sub">${docs.length} Reisedokumente</div>
+        <div class="greeting-name" style="font-size:22px;">${I18N.t("docs.title")}</div>
+        <div class="hero-sub">${I18N.tCount("docs.count", docs.length)}</div>
       </div>
 
       ${first ? `
@@ -1465,7 +1490,7 @@
   }
 
   async function openDokument(documentID, rowEl) {
-    setDocStatus(rowEl, "Wird geladen …");
+    setDocStatus(rowEl, I18N.t("docs.loading"));
     try {
       const res = await fetch(`/api/dokument?travelID=${encodeURIComponent(state.travelID)}&documentID=${encodeURIComponent(documentID)}`);
       const json = await res.json();
@@ -1485,10 +1510,10 @@
         setDocStatus(rowEl, "");
       } else {
         console.warn("Unbekanntes GetDokument-Antwortformat:", d);
-        setDocStatus(rowEl, "Dokument-Antwort in unbekanntem Format erhalten.");
+        setDocStatus(rowEl, I18N.t("docs.unknownFormat"));
       }
     } catch (err) {
-      setDocStatus(rowEl, "Dokument konnte nicht geladen werden.");
+      setDocStatus(rowEl, I18N.t("docs.loadError"));
     }
   }
 
@@ -1498,12 +1523,11 @@
   // eigentlichen Reisedaten – state.officeData kann daher null sein (z.B.
   // wenn der Aufruf am Netzwerk gescheitert ist), das wird hier abgefangen.
 
-  const OFFICE_DOW_LABELS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
-
   // Day1..Day7 werden als Mo…So angenommen (passt zu den Beispieldaten:
   // Day2 komplett leer = Ruhetag Dienstag, Day6 kürzere Zeiten = Samstag,
   // Day7 leer = Sonntag geschlossen). Jeweils bis zu zwei Zeitfenster
-  // (…From1/To1, …From2/To2, z.B. für eine Mittagspause).
+  // (…From1/To1, …From2/To2, z.B. für eine Mittagspause). Die Wochentags-
+  // Bezeichnung kommt sprachabhängig aus i18n.js (office.dow1..dow7).
   function officeOpeningHours(myOffice) {
     const rows = [];
     for (let i = 1; i <= 7; i++) {
@@ -1512,7 +1536,7 @@
       const ranges = [];
       if (from1 && to1) ranges.push(`${from1}–${to1}`);
       if (from2 && to2) ranges.push(`${from2}–${to2}`);
-      rows.push({ label: OFFICE_DOW_LABELS[i - 1], hours: ranges.join(", ") || "geschlossen" });
+      rows.push({ label: I18N.t(`office.dow${i}`), hours: ranges.join(", ") || I18N.t("office.closed") });
     }
     return rows;
   }
@@ -1605,7 +1629,9 @@
     const grund = state.data.ReiseGrund || {};
     const title = grund.travelTitle ? ` "${grund.travelTitle}"` : "";
     const ref = grund.travelID || state.travelID || "";
-    return `Hallo, ich habe eine Frage zu meiner Reise${title}${ref ? ` (Reise-Nr. ${ref})` : ""}.`;
+    return ref
+      ? I18N.t("office.whatsappMessage", { title, ref: I18N.t("office.travelRefLabel", { ref }) })
+      : I18N.t("office.whatsappMessageNoRef", { title });
   }
 
   // Social-Media-Links im Bereich "Mein Reisebüro" – nur anzeigen, wenn
@@ -1634,7 +1660,7 @@
     const myOffice = office && office.MyOffice;
 
     if (!myOffice) {
-      container.innerHTML = `<div class="error-box">Reisebüro-Daten konnten nicht geladen werden.</div>`;
+      container.innerHTML = `<div class="error-box">${I18N.t("office.loadError")}</div>`;
       return;
     }
 
@@ -1650,7 +1676,7 @@
     }
     const wwwUrl = offerLinkUrl(myOffice.www);
     if (wwwUrl) {
-      contactLinks.push(`<a class="offer-link" href="${escapeHtml(wwwUrl)}" target="_blank" rel="noopener noreferrer">${icon("globe", 13)} Website ${icon("externalLink", 11)}</a>`);
+      contactLinks.push(`<a class="offer-link" href="${escapeHtml(wwwUrl)}" target="_blank" rel="noopener noreferrer">${icon("globe", 13)} ${I18N.t("office.website")} ${icon("externalLink", 11)}</a>`);
     }
 
     // Priorität: 1) natives GetOffice-Feld MyOffice.whatsapp (fertiger
@@ -1666,13 +1692,13 @@
 
     container.innerHTML = `
       <div>
-        <div class="greeting-name" style="font-size:22px;">${escapeHtml(myOffice.titleOffice || "Mein Reisebüro")}</div>
+        <div class="greeting-name" style="font-size:22px;">${escapeHtml(myOffice.titleOffice || I18N.t("office.fallback"))}</div>
         <div class="hero-sub">${escapeHtml(myOffice.name || "")}</div>
       </div>
 
       ${officeWhatsapp ? `
       <a class="btn-primary" href="${escapeHtml(officeWhatsapp)}" target="_blank" rel="noopener noreferrer">
-        ${icon("messageCircle", 18)} Per WhatsApp kontaktieren
+        ${icon("messageCircle", 18)} ${I18N.t("office.contactWhatsapp")}
       </a>` : ""}
 
       <div class="offer-card">
@@ -1689,7 +1715,7 @@
 
       ${hours.length ? `
       <div class="day-suggestions">
-        <div class="day-suggestions-title">Öffnungszeiten</div>
+        <div class="day-suggestions-title">${I18N.t("office.openingHours")}</div>
         <div class="office-hours">
           ${hours.map((h) => `
             <div class="office-hours-row">
@@ -1706,7 +1732,7 @@
 
       ${berater.length ? `
       <div class="day-suggestions">
-        <div class="day-suggestions-title">Ihre Ansprechpartner</div>
+        <div class="day-suggestions-title">${I18N.t("office.team")}</div>
         <div class="office-team-grid">
           ${berater.map((b) => `
             <div class="office-team-card">
@@ -1716,7 +1742,7 @@
               <div class="office-team-contact">
                 ${b.phone ? `<a href="tel:${escapeHtml(b.phone.replace(/\s+/g, ""))}">${icon("phone", 12)}<span>${escapeHtml(b.phone)}</span></a>` : ""}
                 ${b.mail ? `<a href="mailto:${escapeHtml(b.mail)}">${icon("mail", 12)}<span>${escapeHtml(b.mail)}</span></a>` : ""}
-                ${whatsappUrl(b.phone, whatsappTravelMessage()) ? `<a href="${escapeHtml(whatsappUrl(b.phone, whatsappTravelMessage()))}" target="_blank" rel="noopener noreferrer">${icon("messageCircle", 12)}<span>WhatsApp</span></a>` : ""}
+                ${whatsappUrl(b.phone, whatsappTravelMessage()) ? `<a href="${escapeHtml(whatsappUrl(b.phone, whatsappTravelMessage()))}" target="_blank" rel="noopener noreferrer">${icon("messageCircle", 12)}<span>${I18N.t("office.whatsapp")}</span></a>` : ""}
               </div>
             </div>`).join("")}
         </div>
@@ -1735,7 +1761,11 @@
   // Veranstalter fällig, nicht über das Reisebüro (siehe
   // leistungPaymentNote()) – das entscheidet auch die Summenbildung unten.
 
-  const LEISTUNG_STATUS_LABELS = { OF: "Offen", BE: "Bestätigt", OP: "Option", ST: "Storniert" };
+  const LEISTUNG_STATUS_CODES = ["OF", "BE", "OP", "ST"];
+
+  function leistungStatusLabel(status) {
+    return LEISTUNG_STATUS_CODES.includes(status) ? I18N.t("price.status" + status) : (status || "");
+  }
 
   function reiseLeistungList() {
     return (state.data.ReiseLeistung || []).filter((item) => item && (item.text || item.bookingNo));
@@ -1751,9 +1781,11 @@
 
   function leistungPaymentNote(item, currency) {
     if (Number(item.RePreis)) {
-      return `An Reisebüro zu zahlen: ${fmtPriceFromCents(item.RePreis, currency)}`;
+      return I18N.t("price.payToAgency", { amount: fmtPriceFromCents(item.RePreis, currency) });
     }
-    return `Direkt an Veranstalter${item.touroperatorName ? ` (${escapeHtml(item.touroperatorName)})` : ""} zu zahlen`;
+    return I18N.t("price.payDirectToOperator", {
+      operator: item.touroperatorName ? ` (${escapeHtml(item.touroperatorName)})` : ""
+    });
   }
 
   function renderPrice() {
@@ -1769,8 +1801,8 @@
 
     document.getElementById("view-price").innerHTML = `
       <div>
-        <div class="greeting-name" style="font-size:22px;">Reisepreis</div>
-        <div class="hero-sub">${items.length} Buchungsposition${items.length === 1 ? "" : "en"}</div>
+        <div class="greeting-name" style="font-size:22px;">${I18N.t("price.title")}</div>
+        <div class="hero-sub">${I18N.tCount("price.item", items.length)}</div>
       </div>
 
       ${items.length ? `
@@ -1782,7 +1814,7 @@
                 <div class="price-row-operator">${escapeHtml(item.touroperatorName || "")}</div>
                 <div class="price-row-text">${escapeHtml(item.text || "")}</div>
               </div>
-              <div class="price-status-badge price-status-${escapeHtml(item.status || "")}">${escapeHtml(LEISTUNG_STATUS_LABELS[item.status] || item.status || "")}</div>
+              <div class="price-status-badge price-status-${escapeHtml(item.status || "")}">${escapeHtml(leistungStatusLabel(item.status))}</div>
             </div>
             <div class="price-row-meta">${escapeHtml(maskBookingNo(item.bookingNo))} · ${[fmtDate(item.startDate), fmtDate(item.endEnd)].filter(Boolean).join(" – ")}</div>
             <div class="price-row-bottom">
@@ -1793,20 +1825,20 @@
       </div>
 
       <div class="price-summary">
-        <div class="price-summary-title">Zusammenfassung</div>
+        <div class="price-summary-title">${I18N.t("price.summary")}</div>
         <div class="price-summary-row">
-          <span>An Reisebüro zu zahlen</span>
+          <span>${I18N.t("price.totalToAgency")}</span>
           <span>${fmtPriceFromCents(toOffice, currency)}</span>
         </div>
         <div class="price-summary-row">
-          <span>Direkt an Veranstalter zu zahlen</span>
+          <span>${I18N.t("price.totalToOperator")}</span>
           <span>${fmtPriceFromCents(toOperator, currency)}</span>
         </div>
         <div class="price-summary-row is-total">
-          <span>Gesamtsumme</span>
+          <span>${I18N.t("price.total")}</span>
           <span>${fmtPriceFromCents(total, currency)}</span>
         </div>
-      </div>` : `<div class="error-box">Keine Preisdaten vorhanden.</div>`}
+      </div>` : `<div class="error-box">${I18N.t("price.noData")}</div>`}
     `;
   }
 
@@ -1879,5 +1911,30 @@
     }[c]));
   }
 
+  // ---------- Sprachumschaltung ----------
+  //
+  // #langSelect (siehe index.html, immer sichtbar oben in der App) wird hier
+  // mit den unterstützten Sprachen befüllt (Anzeigename jeweils in der
+  // Sprache selbst, z.B. "Ελληνικά" – siehe I18N.LANG_NAMES). Ein Wechsel
+  // übersetzt sofort: die statischen [data-i18n]-Elemente neu (siehe
+  // applyStaticTranslations()) sowie alle bereits geladenen Ansichten per
+  // renderAll() (nur wenn schon Reisedaten vorliegen – ohne state.data gibt
+  // es außer der Fehleransicht noch nichts Eigenes neu zu rendern).
+  function initLangSwitcher() {
+    const select = document.getElementById("langSelect");
+    if (!select) return;
+    select.innerHTML = I18N.SUPPORTED_LANGS
+      .map((lang) => `<option value="${lang}">${escapeHtml(I18N.LANG_NAMES[lang])}</option>`)
+      .join("");
+    select.value = I18N.getLang();
+    select.addEventListener("change", () => {
+      I18N.setLang(select.value);
+      I18N.applyStaticTranslations();
+      if (state.data) renderAll();
+    });
+  }
+
+  I18N.applyStaticTranslations();
+  initLangSwitcher();
   loadReiseData();
 })();

@@ -96,24 +96,28 @@ Wie bei Hotel und Kreuzfahrt gilt: erst umsetzen, sobald ein echtes
 jeweiligen Typ vorliegt (Schema nicht raten – siehe bisherige
 Erfahrung mit `hotelPics`, `ZusatzLeistung` etc.).
 
-## 5. Mehrsprachigkeit
+## 5. Mehrsprachigkeit ✅ umgesetzt
 
-Aktuell ist die gesamte Oberfläche fest auf Deutsch (alle Texte/Labels
-direkt im Markup in `app.js`/`index.html`, keine Übersetzungsschicht).
+Die App-eigene Oberfläche gibt es jetzt auf Deutsch, Englisch, Französisch,
+Italienisch, Türkisch und Griechisch (`public/i18n.js`, hand-geschriebenes
+Wörterbuch pro Sprache, bewusst ohne externe i18n-Bibliothek/Übersetzungs-
+API – passend zur Zero-Dependency-Philosophie der App). Umschaltung über
+ein Dropdown oben in der App (`#langSelect`, immer sichtbar), Vorbelegung
+aus der Browser-Sprache, Merken per `localStorage`. Details siehe README.md,
+Abschnitt "Mehrsprachigkeit".
 
-Offene Punkte:
-- Liefert die BOSYS-API Texte (z.B. `text`/`discription`-Felder,
-  Zusatzleistungen) bereits sprachabhängig, oder nur die feste
-  App-Oberfläche (Labels, Buttons, Öffnungszeiten-Wochentage etc.)? Falls
-  auch Inhalte übersetzt werden sollen, braucht es eine Sprachangabe im
-  API-Aufruf – klären, ob/wie GetReiseData das unterstützt.
-- Für die App-Oberfläche: Texte aus dem Code in eine
-  Übersetzungstabelle/-datei auslegen (z.B. `de`/`en` als Start),
-  Sprachumschaltung (z.B. über Browser-Sprache als Default + manuelle
-  Auswahl).
-- Betrifft u.a. Wochentage/Datumsformate (`fmtDate`, `DOW`,
-  `OFFICE_DOW_LABELS`), alle statischen Labels in `app.js` sowie
-  `index.html` (Nav-Beschriftungen).
+Von BOSYS gelieferte Inhalte (Reisetitel, Hotel-Beschreibung, Zusatz-
+leistungen-Text usw.) werden bewusst **nicht** übersetzt – nur die
+Zusatzleistungs-**Titel** werden anhand ihres G-Codes übersetzt, und zwar
+nur für Codes mit gesicherter Bedeutung (G002/G003/G004/G005/G007, siehe
+`OFFER_TYPE_LABELS` in `i18n.js`). Alle anderen G-Codes zeigen weiterhin
+die Original-Headline (Deutsch), damit nie eine erratene/falsche Kategorie
+angezeigt wird – bei Bedarf ergänzen, sobald ein echtes Beispiel die
+Bedeutung eines weiteren Codes bestätigt.
+
+Noch offen (kein akuter Bedarf): sprachabhängige Inhalte direkt von BOSYS
+(bräuchte eine Sprachangabe im `GetReiseData`-Aufruf selbst – ob/wie die
+API das unterstützt, ist ungeklärt).
 
 ## 6. "In der Nähe" (Google Places) ✅ umgesetzt / Viator noch offen
 

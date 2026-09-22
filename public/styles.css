@@ -49,6 +49,23 @@ html, body {
   padding: 7px 12px;
 }
 
+/* Enthält Demo-Banner + Sprachauswahl, siehe index.html – beide teilen
+   sich dieselbe Position außerhalb der Views (immer sichtbar, unabhängig
+   vom aktiven Tab). */
+.top-bar { display: flex; flex-direction: column; }
+.top-bar .demo-banner { flex: 1; }
+
+.lang-switcher {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px; color: var(--ink-faint);
+}
+.lang-switcher svg { flex-shrink: 0; }
+.lang-switcher select {
+  border: none; background: none; color: var(--ink-soft);
+  font-family: inherit; font-size: 12px; font-weight: 500;
+  padding: 2px 0; cursor: pointer;
+}
+
 .views {
   flex: 1;
   overflow-y: auto;
@@ -397,10 +414,11 @@ html, body {
     box-shadow: 0 24px 60px oklch(20% 0.02 260 / .14), 0 0 0 1px var(--border);
   }
 
-  /* Demo-Banner läuft nur über die Inhaltsspalte (nicht über die
-     Seitennavigation), sonst verschiebt sein Zeilenanteil das Grid, weil
-     die Sidebar über beide Zeilen spannt. */
-  .demo-banner { grid-column: 2; grid-row: 1; }
+  /* Demo-Banner + Sprachauswahl laufen nur über die Inhaltsspalte (nicht
+     über die Seitennavigation), sonst verschiebt ihr Zeilenanteil das
+     Grid, weil die Sidebar über beide Zeilen spannt. */
+  .top-bar { grid-column: 2; grid-row: 1; }
+  .lang-switcher { justify-content: flex-end; }
 
   .sidebar-brand {
     display: block;

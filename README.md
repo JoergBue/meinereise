@@ -168,15 +168,38 @@ Hash-Fragment startet (die Installation merkt sich nur `manifest.json`s
 zuletzt geladene `travelID` in `localStorage` (`getTravelIDFromURL()`) und
 verwendet sie als Fallback, wenn kein Hash/Query-Parameter übergeben wurde.
 
+## Mehrsprachigkeit
+
+Die App-eigene Oberfläche (Labels, Buttons, Wochentage, Statusnamen usw.)
+gibt es auf Deutsch, Englisch, Französisch, Italienisch, Türkisch und
+Griechisch (`public/i18n.js`, ohne externe Bibliothek/Übersetzungs-API –
+ein einfaches Wörterbuch pro Sprache). Die Sprache wird per Dropdown oben
+in der App (`#langSelect`) umgeschaltet, per `localStorage` gemerkt und
+beim ersten Aufruf aus der Browser-Sprache vorbelegt.
+
+Von BOSYS gelieferte Inhalte (`ReiseGrund.travelTitle`, Hotel-`discription`,
+Zusatzleistungen-`text` usw.) werden **nicht** übersetzt und bleiben so, wie
+`GetReiseData`/`GetOffice` sie liefern. Einzige Ausnahme: die Titel der
+Zusatzleistungen (`ZusatzLeistung[].headline`, z.B. "Mietwagen") werden
+anhand ihres Angebots-Typs (`type`, ein "G0xx"-Code) übersetzt, siehe
+`OFFER_TYPE_LABELS` in `i18n.js` und `offerTitle()` in `app.js` – **nur**
+für Codes, deren Bedeutung aus echten/besprochenen Beispielen bekannt ist
+(aktuell: G002 Reisekrankenversicherung, G003 Einreisebestimmungen, G004
+Mietwagen, G005 Parkplatz, G007 Wetter). Für alle anderen G-Codes bleibt
+bewusst die Original-Headline (Deutsch) stehen, statt eine Bedeutung zu
+erraten – bei Bedarf in `OFFER_TYPE_LABELS` ergänzen, sobald ein echtes
+Beispiel die Bedeutung bestätigt.
+
 ## Struktur
 
 ```
 server.js         Node-Server (nur Bordmittel), Routen /api/*, baut den bns_request
 demoData.js        Fallback-Antworten im echten API-Format (Demo-Daten)
 public/
-  index.html       App-Grundgerüst (Views + Bottom-Nav), PWA-Meta-Tags
+  index.html       App-Grundgerüst (Views + Bottom-Nav), PWA-Meta-Tags, Sprachauswahl
   styles.css       Design-Tokens "Modern & Minimal"
   app.js           Rendering, Navigation, Datumshelfer – rein clientseitig
+  i18n.js          Mehrsprachigkeit: Wörterbuch DE/EN/FR/IT/TR/EL, t()/tCount()
   manifest.json    Web App Manifest ("Zum Home-Bildschirm hinzufügen")
   sw.js            Service Worker (nur Installierbarkeit, kein Caching)
   icons/           App-Icons (192/512/512-maskable/apple-touch)
