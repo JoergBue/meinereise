@@ -45,7 +45,11 @@
     facebook: '<path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>',
     instagram: '<rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><path d="M17.5 6.5h.01"/>',
     youtube: '<path d="M2.5 17a24.1 24.1 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.6 49.6 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.1 24.1 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.6 49.6 0 0 1-16.2 0A2 2 0 0 1 2.5 17"/><path d="m10 15 5-3-5-3z"/>',
-    tiktok: '<path d="M9 12a4 4 0 1 0 4 4V2a5 5 0 0 0 5 5"/>'
+    tiktok: '<path d="M9 12a4 4 0 1 0 4 4V2a5 5 0 0 0 5 5"/>',
+    download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
+    // Stilisiertes iOS-"Teilen"-Symbol (Pfeil aus einem Kasten nach oben) für
+    // die Home-Bildschirm-Anleitung unter Safari, siehe renderInstallBanner().
+    share: '<path d="M12 3v12"/><path d="m8 7 4-4 4 4"/><rect x="4" y="13" width="16" height="8" rx="2"/>'
   };
 
   function icon(name, size = 20) {
@@ -206,13 +210,33 @@
     placesCache: new Map()
   };
 
+  // Merkt sich die zuletzt geladene travelID lokal im Browser. Grund: Wird
+  // die App über "Zum Home-Bildschirm hinzufügen" installiert (siehe
+  // renderInstallBanner()), startet Android/Chrome den Shortcut über
+  // manifest.json/start_url ("./", ohne Hash-Fragment) statt über den
+  // zuletzt aufgerufenen Link "#<travelID>" – ohne diesen Fallback würde
+  // die App dann mit "Keine travelID übergeben" fehlschlagen.
+  const LAST_TRAVEL_ID_KEY = "meinereise:lastTravelID";
+
+  function rememberTravelID(id) {
+    if (!id) return;
+    try { localStorage.setItem(LAST_TRAVEL_ID_KEY, id); } catch (e) {
+      // localStorage evtl. nicht verfügbar (privater Modus o.ä.) – dann
+      // gibt es beim nächsten Aufruf ohne Hash eben keinen Fallback.
+    }
+  }
+
   function getTravelIDFromURL() {
     // Aufruf-Format: https://.../#291922  (Hash-Fragment, wird nicht an den Server gesendet)
     const hash = window.location.hash.replace(/^#/, "").trim();
     if (hash) return hash;
     // Fallback, falls die App doch mal mit ?travelID=... aufgerufen wird
     const params = new URLSearchParams(window.location.search);
-    return params.get("travelID") || "";
+    const fromQuery = params.get("travelID") || "";
+    if (fromQuery) return fromQuery;
+    // Letzter Fallback: als Home-Bildschirm-Symbol installierter Shortcut
+    // ohne Hash (siehe Kommentar oben bei LAST_TRAVEL_ID_KEY).
+    try { return localStorage.getItem(LAST_TRAVEL_ID_KEY) || ""; } catch (e) { return ""; }
   }
 
   // ---------- Laden ----------
@@ -224,6 +248,7 @@
       renderFatalError("Keine travelID übergeben. Aufruf-Format: <code>" + window.location.origin + window.location.pathname + "#&lt;travelID&gt;</code>");
       return;
     }
+    rememberTravelID(state.travelID);
 
     try {
       // /api/office ("Mein Reisebüro") läuft unabhängig von der travelID
@@ -459,6 +484,8 @@
         <button type="button" class="alarm-banner-close" data-alarm-close aria-label="Schließen">${icon("close", 14)}</button>
       </div>` : ""}
 
+      <div id="installBannerHolder"></div>
+
       <div class="hero-card">
         <div class="hero-photo">
           ${heroImg
@@ -539,6 +566,102 @@
         });
       }
     }
+
+    // #installBannerHolder bleibt als stabiler Platzhalter erhalten (siehe
+    // oben) – renderInstallBanner() füllt ihn separat und wird auch von den
+    // beforeinstallprompt-/appinstalled-Listenern erneut aufgerufen, ohne
+    // dass dafür die ganze Overview neu gerendert werden müsste (gleiches
+    // Prinzip wie beim Alarm-Banner oben).
+    renderInstallBanner();
+  }
+
+  // ---------- "Zum Home-Bildschirm hinzufügen" ----------
+  //
+  // Startet die App nicht bereits im Standalone-Modus (also nicht schon vom
+  // Home-Bildschirm aus geöffnet) und wurde der Hinweis nicht schon einmal
+  // weggeklickt, zeigt ein dezenter Banner auf der Startseite, wie man die
+  // App zum Home-Bildschirm hinzufügt:
+  // - Android/Chrome & Co.: nutzt das native beforeinstallprompt-Event für
+  //   einen echten "Installieren"-Button (siehe Listener weiter unten).
+  // - iOS/Safari: kann das Hinzufügen nicht programmatisch anstoßen, daher
+  //   nur eine kurze Anleitung (Teilen-Symbol -> "Zum Home-Bildschirm").
+  // Einmal weggeklickt, bleibt der Banner dauerhaft (localStorage) verborgen.
+
+  const INSTALL_DISMISS_KEY = "meinereise:installBannerDismissed";
+  let deferredInstallPrompt = null;
+
+  function isStandaloneDisplay() {
+    return (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)
+      || window.navigator.standalone === true;
+  }
+
+  function isIOSDevice() {
+    // iPadOS meldet sich seit iOS 13 per Default als "MacIntel" – daher
+    // zusätzlich über Touch-Unterstützung von einem echten Mac abgrenzen.
+    return /iphone|ipad|ipod/i.test(navigator.userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  }
+
+  function installBannerDismissed() {
+    try { return localStorage.getItem(INSTALL_DISMISS_KEY) === "1"; } catch (e) { return false; }
+  }
+
+  function dismissInstallBanner() {
+    try { localStorage.setItem(INSTALL_DISMISS_KEY, "1"); } catch (e) {
+      // localStorage evtl. nicht verfügbar – Banner verschwindet dann nur
+      // für die aktuelle Ansicht, taucht beim nächsten Laden wieder auf.
+    }
+    const holder = document.getElementById("installBannerHolder");
+    if (holder) holder.innerHTML = "";
+  }
+
+  function renderInstallBanner() {
+    const holder = document.getElementById("installBannerHolder");
+    if (!holder) return;
+
+    if (isStandaloneDisplay() || installBannerDismissed()) {
+      holder.innerHTML = "";
+      return;
+    }
+
+    if (deferredInstallPrompt) {
+      holder.innerHTML = `
+        <div class="install-banner">
+          <div class="install-banner-icon">${icon("download", 16)}</div>
+          <div class="install-banner-text">
+            <strong>App installieren</strong>
+            Schneller Zugriff auf deinen Reiseplan direkt vom Home-Bildschirm.
+          </div>
+          <button type="button" class="install-banner-btn" data-install-action>Installieren</button>
+          <button type="button" class="install-banner-close" data-install-dismiss aria-label="Schließen">${icon("close", 14)}</button>
+        </div>`;
+      const actionBtn = holder.querySelector("[data-install-action]");
+      if (actionBtn) {
+        actionBtn.addEventListener("click", async () => {
+          if (!deferredInstallPrompt) return;
+          deferredInstallPrompt.prompt();
+          try { await deferredInstallPrompt.userChoice; } catch (e) {}
+          deferredInstallPrompt = null;
+          dismissInstallBanner();
+        });
+      }
+    } else if (isIOSDevice()) {
+      holder.innerHTML = `
+        <div class="install-banner">
+          <div class="install-banner-icon">${icon("download", 16)}</div>
+          <div class="install-banner-text">
+            <strong>Zum Home-Bildschirm hinzufügen</strong>
+            Tippe unten auf ${icon("share", 12)} „Teilen“ und dann auf „Zum Home-Bildschirm“.
+          </div>
+          <button type="button" class="install-banner-close" data-install-dismiss aria-label="Schließen">${icon("close", 14)}</button>
+        </div>`;
+    } else {
+      holder.innerHTML = "";
+      return;
+    }
+
+    const closeBtn = holder.querySelector("[data-install-dismiss]");
+    if (closeBtn) closeBtn.addEventListener("click", dismissInstallBanner);
   }
 
   // ---------- View: Reiseplan ----------
@@ -1719,6 +1842,36 @@
   });
 
   window.addEventListener("hashchange", loadReiseData);
+
+  // beforeinstallprompt kommt asynchron vom Browser (Android/Chrome & Co.),
+  // meist erst nachdem die Overview schon gerendert wurde – daher hier nur
+  // das Event merken und gezielt den Install-Banner-Platzhalter aktualisieren
+  // (renderInstallBanner()), statt die ganze Overview neu zu rendern.
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    renderInstallBanner();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    dismissInstallBanner();
+  });
+
+  // Service Worker nur fürs Installierbarkeits-Kriterium auf Android/Chrome
+  // (siehe sw.js) – ohne Service Worker kein "Zum Home-Bildschirm
+  // hinzufügen" mit echtem Install-Prompt, sondern höchstens ein normales
+  // Browser-Lesezeichen.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {
+        // Kein harter Fehler nötig – ohne Service Worker gibt es unter
+        // iOS/Safari ohnehin nur die manuelle Anleitung (kein
+        // beforeinstallprompt), und unter Android bliebe es dann bei einem
+        // normalen Lesezeichen statt einer echten Installation.
+      });
+    });
+  }
 
   function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (c) => ({

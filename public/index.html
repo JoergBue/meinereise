@@ -4,6 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MeineReise</title>
+
+<!-- "Zum Home-Bildschirm hinzufügen" / PWA-Installierbarkeit: manifest.json
+     (Icons/Name/Standalone-Modus für Android & Co.) plus die iOS-eigenen
+     apple-mobile-web-app-*-Meta-Tags (Safari ignoriert das Manifest dafür
+     größtenteils). Siehe auch sw.js (Service Worker, nur fürs
+     Installierbarkeits-Kriterium, ohne Offline-Caching) und die
+     Install-Banner-Logik in app.js. -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#118186">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="MeineReise">
+
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="styles.css">
 </head>

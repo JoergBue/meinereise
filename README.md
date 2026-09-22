@@ -143,15 +143,43 @@ hPanel das anbietet).
 `[GetDokument] Aufruf fehlgeschlagen: …` – die App fällt in dem Fall auf
 Demo-Daten zurück statt abzustürzen.
 
+## Zum Home-Bildschirm hinzufügen (PWA)
+
+Die App lässt sich auf dem Smartphone installieren (eigenes Icon, läuft im
+Vollbild ohne Browser-Leiste): `public/manifest.json` (Name, Icons unter
+`public/icons/`, `display: standalone`) plus die `apple-mobile-web-app-*`-
+Meta-Tags in `index.html` für Safari sowie ein bewusst minimaler Service
+Worker (`public/sw.js`, **ohne** Offline-Caching – Reisedaten sollen bei
+jedem Aufruf frisch vom Server kommen, kein veralteter Stand unterwegs).
+
+In der App selbst zeigt ein dezenter Banner auf der Startseite, wie man die
+App hinzufügt (`renderInstallBanner()` in `app.js`):
+- **Android/Chrome & Co.**: nutzt das native `beforeinstallprompt`-Event für
+  einen echten "Installieren"-Button.
+- **iOS/Safari**: kann das nicht programmatisch auslösen, zeigt daher nur
+  die Anleitung ("Teilen" → "Zum Home-Bildschirm").
+
+Einmal weggeklickt bleibt der Banner dauerhaft (im Browser, `localStorage`)
+verborgen.
+
+Da ein als Homescreen-Icon installierter Shortcut ohne das `#<travelID>`-
+Hash-Fragment startet (die Installation merkt sich nur `manifest.json`s
+`start_url`, siehe oben "Aufruf-URL"), merkt sich die App zusätzlich die
+zuletzt geladene `travelID` in `localStorage` (`getTravelIDFromURL()`) und
+verwendet sie als Fallback, wenn kein Hash/Query-Parameter übergeben wurde.
+
 ## Struktur
 
 ```
-server.js        Express-Server, Route /api/reisedaten, baut den bns_request
-demoData.js       Fallback-Antwort im echten GetReiseData-Format
+server.js         Node-Server (nur Bordmittel), Routen /api/*, baut den bns_request
+demoData.js        Fallback-Antworten im echten API-Format (Demo-Daten)
 public/
-  index.html      App-Grundgerüst (4 Views + Bottom-Nav)
-  styles.css      Design-Tokens "Modern & Minimal"
-  app.js          Rendering, Navigation, Datumshelfer – rein clientseitig
+  index.html       App-Grundgerüst (Views + Bottom-Nav), PWA-Meta-Tags
+  styles.css       Design-Tokens "Modern & Minimal"
+  app.js           Rendering, Navigation, Datumshelfer – rein clientseitig
+  manifest.json    Web App Manifest ("Zum Home-Bildschirm hinzufügen")
+  sw.js            Service Worker (nur Installierbarkeit, kein Caching)
+  icons/           App-Icons (192/512/512-maskable/apple-touch)
 ```
 
 ## Bekannte Annahmen / offene Punkte

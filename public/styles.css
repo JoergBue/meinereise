@@ -111,6 +111,30 @@ html, body {
 }
 .alarm-banner-close:hover { opacity: 1; }
 
+/* "Zum Home-Bildschirm hinzufügen"-Hinweis (siehe renderInstallBanner() in
+   app.js) – bewusst in Akzentfarbe statt der Warnfarbe des Alarm-Banners,
+   da es sich um einen positiven Hinweis handelt, keine Meldung. */
+.install-banner {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--accent-soft); color: var(--accent-ink);
+  border-radius: 14px; padding: 13px 14px;
+  font-size: 13px; line-height: 1.5;
+}
+.install-banner-icon { flex-shrink: 0; margin-top: 1px; }
+.install-banner-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.install-banner-text strong { color: var(--ink); font-weight: 600; font-size: 13.5px; }
+.install-banner-text svg { vertical-align: -2px; }
+.install-banner-btn {
+  flex-shrink: 0; align-self: center; background: var(--accent); color: var(--accent-contrast);
+  border: none; border-radius: 100px; padding: 7px 14px;
+  font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.install-banner-close {
+  flex-shrink: 0; background: none; border: none; padding: 2px;
+  color: inherit; opacity: .7; cursor: pointer; font-family: inherit;
+}
+.install-banner-close:hover { opacity: 1; }
+
 /* Hero trip card */
 .hero-card {
   border-radius: 22px;

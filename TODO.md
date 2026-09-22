@@ -138,3 +138,20 @@ passend zum jeweiligen Reisetag). Dafür nötig:
   Destination/Standort passende Produkte abruft, mit Demo-Fallback.
 - Anzeigeort klären: eigener Abschnitt im Reiseplan (wie "In der Nähe"),
   oder Ergänzung der bestehenden "Passend für heute"-Angebotsvorschläge.
+
+## 7. "Zum Home-Bildschirm hinzufügen" ✅ umgesetzt
+
+Als eine von mehreren Ideen für mehr Nutzungslust/Kundenbindung besprochen
+(u.a. Notfall-Kontakt, Live-Flugstatus, Viator-Ausflüge s.o., Feedback nach
+der Reise, Wiederkehr-Rabatt) – als erste Maßnahme umgesetzt, da mit wenig
+Aufwand direkt wirksam: `manifest.json` + Icons (`public/icons/`) +
+Service Worker (`sw.js`, bewusst ohne Offline-Caching) machen die App
+installierbar; ein dezenter Banner auf der Startseite
+(`renderInstallBanner()` in `app.js`) zeigt Android/Chrome-Nutzern einen
+echten "Installieren"-Button (`beforeinstallprompt`), iOS/Safari-Nutzern
+eine kurze Anleitung (Safari kann das nicht automatisch auslösen). Details
+siehe README.md, Abschnitt "Zum Home-Bildschirm hinzufügen (PWA)".
+
+Die übrigen besprochenen Ideen (Notfall-Kontakt-Button, Live-Flugstatus,
+Feedback/Bewertung nach der Reise, Wiederkehr-Rabatt, Reiserückblick zum
+Abschluss) sind noch nicht umgesetzt – bei Bedarf einzeln angehen.
