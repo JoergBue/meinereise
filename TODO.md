@@ -159,3 +159,25 @@ siehe README.md, Abschnitt "Zum Home-Bildschirm hinzufügen (PWA)".
 Die übrigen besprochenen Ideen (Notfall-Kontakt-Button, Live-Flugstatus,
 Feedback/Bewertung nach der Reise, Wiederkehr-Rabatt, Reiserückblick zum
 Abschluss) sind noch nicht umgesetzt – bei Bedarf einzeln angehen.
+
+## 8. Reiseplan nach Reiseende ✅ umgesetzt
+
+Ist die Reise bereits beendet (`tripStatus()` in `app.js`, dieselbe
+Einteilung wie der "Reise beendet"-Badge auf der Startseite), zeigt der
+Reiseplan nur noch eine Zusammenfassung statt der normalen Tages-Tabs-
+Ansicht (`renderPlanSummary()` statt `renderPlanActive()`):
+
+- keine Tages-Tabs/aktiver Tag mehr, stattdessen alle Tage mit mindestens
+  einem Eintrag direkt untereinander (nicht mehr einzeln anwählbar wie
+  bisher nebeneinander),
+- Tage ganz ohne eigenen Eintrag werden nicht mehr angezeigt (weder als
+  Leerzeile noch mit Hotel-/Mietwagen-Kontextkarte oder
+  Angebots-Vorschlägen – für eine vorbei gereiste Reise gibt es nichts
+  mehr zu planen oder zu empfehlen),
+- keine "In der Nähe"-Abfrage (Google Places) mehr, weder Aufruf noch
+  Anzeige – spart unnötige (kostenpflichtige) API-Aufrufe für Tage, die
+  ohnehin vorbei sind.
+
+Betrifft nur den Reiseplan; Reisen, die noch bevorstehen oder gerade
+laufen, sehen weiterhin die bisherige Tages-Tabs-Ansicht mit "In der
+Nähe".

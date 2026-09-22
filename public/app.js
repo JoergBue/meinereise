@@ -360,6 +360,26 @@
     return days;
   }
 
+  // "upcoming" (Checkin liegt noch vorn), "ongoing" (zwischen Checkin und
+  // Checkout, heute eingeschlossen) oder "ended" (Checkout liegt in der
+  // Vergangenheit) – dieselbe Einteilung, die schon bisher für den
+  // Countdown-Badge auf der Startseite galt (siehe renderOverview()), jetzt
+  // hier zentral, da auch der Reiseplan bei bereits beendeten Reisen anders
+  // dargestellt wird (siehe renderPlan()): dann nur noch eine Zusammen-
+  // fassung statt Tages-Tabs, und keine "In der Nähe"-Abfragen (Google
+  // Places) mehr, da für eine vorbei gereiste Reise nichts mehr zu
+  // empfehlen ist. Ohne checkinDate (unvollständige Daten) null.
+  function tripStatus() {
+    const grund = state.data.ReiseGrund || {};
+    const checkin = parseYYYYMMDD(grund.checkinDate);
+    if (!checkin) return null;
+    const checkout = parseYYYYMMDD(grund.checkoutDate);
+    const today = new Date();
+    if (daysBetween(today, checkin) > 0) return "upcoming";
+    if (checkout && daysBetween(today, checkout) >= 0) return "ongoing";
+    return "ended";
+  }
+
   function verlaufForDay(dayKeyStr) {
     const items = verlaufList().filter((item) => (item.sortDate || "").startsWith(dayKeyStr));
     // Mietwagen (type "M") ist EIN ReiseVerlauf-Eintrag mit sortDate =
@@ -460,14 +480,12 @@
     const checkin = parseYYYYMMDD(grund.checkinDate);
     const checkout = parseYYYYMMDD(grund.checkoutDate);
     const today = new Date();
+    const status = tripStatus();
 
     let countdown = "";
-    if (checkin) {
-      const diff = daysBetween(today, checkin);
-      if (diff > 0) countdown = I18N.tCount("overview.daysLeft", diff);
-      else if (checkout && daysBetween(today, checkout) >= 0) countdown = I18N.t("overview.tripOngoing");
-      else countdown = I18N.t("overview.tripEnded");
-    }
+    if (status === "upcoming") countdown = I18N.tCount("overview.daysLeft", daysBetween(today, checkin));
+    else if (status === "ongoing") countdown = I18N.t("overview.tripOngoing");
+    else if (status === "ended") countdown = I18N.t("overview.tripEnded");
 
     const nights = checkin && checkout ? daysBetween(checkin, checkout) : null;
     const chips = bookedStatusChips();
@@ -768,14 +786,53 @@
       </div>`;
   }
 
+  // Ist die Reise schon beendet (tripStatus() === "ended"), zeigt der
+  // Reiseplan nur noch eine Zusammenfassung (renderPlanSummary) statt der
+  // normalen Tages-Tabs-Ansicht (renderPlanActive) – siehe dort.
   function renderPlan() {
     const days = tripDayList();
+    const ended = tripStatus() === "ended";
+
+    document.getElementById("view-plan").innerHTML = ended
+      ? renderPlanSummary(days)
+      : renderPlanActive(days);
+
+    if (!ended) {
+      document.querySelectorAll(".day-tab").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.activeDay = btn.dataset.day;
+          renderPlan();
+        });
+      });
+    }
+
+    document.querySelectorAll("[data-verlauf-idx]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const item = verlaufList()[Number(el.dataset.verlaufIdx)];
+        if (!item) return;
+        if (item.type === "H") openHotelDetail(item);
+        else if (item.type === "C") openCruiseDetail(item);
+      });
+    });
+
+    document.querySelectorAll("#view-plan [data-goto]").forEach((el) => {
+      // Lokal gebunden statt über die globale renderAll()-Bindung, da
+      // renderPlan() bei jedem Tageswechsel neu rendert (siehe oben) und
+      // damit auch neu erzeugte Elemente wie hier die Angebots-Kacheln.
+      el.addEventListener("click", () => showView(el.dataset.goto));
+    });
+  }
+
+  // Normale Ansicht (Reise steht noch bevor oder läuft gerade): Tages-Tabs
+  // zur Auswahl eines einzelnen Tages, dessen Timeline darunter, plus "In
+  // der Nähe" (Google Places) zum Standort dieses Tages.
+  function renderPlanActive(days) {
     if (!state.activeDay && days.length) state.activeDay = days[0].key;
 
     const activeItems = state.activeDay ? verlaufForDay(state.activeDay) : [];
     const placesLoc = state.activeDay ? placesLocationForDay(state.activeDay) : null;
 
-    document.getElementById("view-plan").innerHTML = `
+    return `
       <div>
         <div class="greeting-name" style="font-size:22px;">${I18N.t("plan.title")}</div>
         <div class="hero-sub">${escapeHtml((state.data.ReiseGrund || {}).travelRegionText || "")}</div>
@@ -796,29 +853,43 @@
 
       ${placesLoc ? renderNearbyPlaces(placesLoc.lat, placesLoc.lon) : ""}
     `;
+  }
 
-    document.querySelectorAll(".day-tab").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        state.activeDay = btn.dataset.day;
-        renderPlan();
-      });
-    });
+  // Zusammenfassung für bereits beendete Reisen: nur noch ein Rückblick,
+  // kein Planungswerkzeug mehr. Deshalb bewusst anders als renderPlanActive:
+  // - keine Tages-Tabs/aktiver Tag, stattdessen alle Tage mit mindestens
+  //   einem Eintrag direkt untereinander (nicht nebeneinander wählbar),
+  // - Tage ganz ohne eigenen Eintrag werden nicht mehr angezeigt (weder als
+  //   Leerzeile noch mit Hotel-/Mietwagen-Kontextkarte oder Angebots-
+  //   Vorschlägen – für eine vorbei gereiste Reise gibt es nichts mehr zu
+  //   empfehlen oder zu planen),
+  // - keine "In der Nähe"-Abfrage (Google Places) mehr, weder Aufruf noch
+  //   Anzeige – auch das ergibt für einen bereits vergangenen Tag keinen
+  //   Sinn mehr und spart unnötige (kostenpflichtige) API-Aufrufe.
+  function renderPlanSummary(days) {
+    const dayGroups = days
+      .map((d) => ({ day: d, items: verlaufForDay(d.key) }))
+      .filter((g) => g.items.length);
 
-    document.querySelectorAll("[data-verlauf-idx]").forEach((el) => {
-      el.addEventListener("click", () => {
-        const item = verlaufList()[Number(el.dataset.verlaufIdx)];
-        if (!item) return;
-        if (item.type === "H") openHotelDetail(item);
-        else if (item.type === "C") openCruiseDetail(item);
-      });
-    });
+    return `
+      <div>
+        <div class="greeting-name" style="font-size:22px;">${I18N.t("plan.title")}</div>
+        <div class="hero-sub">${escapeHtml((state.data.ReiseGrund || {}).travelRegionText || "")}</div>
+      </div>
 
-    document.querySelectorAll("#view-plan [data-goto]").forEach((el) => {
-      // Lokal gebunden statt über die globale renderAll()-Bindung, da
-      // renderPlan() bei jedem Tageswechsel neu rendert (siehe oben) und
-      // damit auch neu erzeugte Elemente wie hier die Angebots-Kacheln.
-      el.addEventListener("click", () => showView(el.dataset.goto));
-    });
+      <div class="plan-summary">
+        ${dayGroups.length ? dayGroups.map((g) => `
+          <div class="plan-summary-day">
+            <div class="plan-summary-day-head">
+              <span class="dow">${dowShort(g.day.date.getDay())}</span>
+              <span>${fmtDate(g.day.key)}</span>
+            </div>
+            <div class="timeline">
+              ${g.items.map((item, i) => renderTimelineRow(item, i === g.items.length - 1, g.day.key)).join("")}
+            </div>
+          </div>`).join("") : `<div class="timeline-empty">${I18N.t("plan.noProgramToday")}</div>`}
+      </div>
+    `;
   }
 
   // Tag ohne eigenen ReiseVerlauf-Eintrag: statt der reinen Leermeldung den

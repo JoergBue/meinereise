@@ -269,6 +269,16 @@ html, body {
 .timeline-card.is-clickable > div:nth-child(2) { flex: 1; min-width: 0; }
 .timeline-empty { color: var(--ink-faint); font-size: 13px; padding: 8px 0 22px 0; }
 
+/* Reiseplan-Zusammenfassung für bereits beendete Reisen (renderPlanSummary
+   in app.js): Tage mit Einträgen untereinander statt Tages-Tabs. */
+.plan-summary { display: flex; flex-direction: column; gap: 24px; }
+.plan-summary-day { display: flex; flex-direction: column; gap: 10px; }
+.plan-summary-day-head {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 13px; font-weight: 600; color: var(--ink-soft);
+}
+.plan-summary-day-head .dow { text-transform: uppercase; color: var(--accent-ink); }
+
 /* Tag ohne eigenen Programmpunkt: Hotel-Kontext + passende Angebote */
 .day-empty { display: flex; flex-direction: column; gap: 16px; padding-bottom: 12px; }
 .day-suggestions { display: flex; flex-direction: column; gap: 10px; }
