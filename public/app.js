@@ -579,9 +579,17 @@
             // fehlt der Link, fällt die Karte wie bisher auf den Sprung zum
             // Tab "Zusatzleistungen" zurück (data-goto, siehe renderAll()).
             const url = offerLinkUrl(o.link);
+            // Bei direktem Einsprung in den Angebotslink (öffnet in einem
+            // neuen Tab, siehe target="_blank" oben) zusätzlich das externe-
+            // Link-Symbol (Kasten mit Pfeil) einblenden, damit klar ist,
+            // dass hier die App verlassen wird – ohne Link (Sprung zum Tab
+            // "Zusatzleistungen" bleibt in der App) entfällt es.
             return url
               ? `<a class="mini-card" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">
-                  <div class="mini-card-icon">${icon(offerIcon(o), 16)}</div>
+                  <div class="mini-card-head">
+                    <div class="mini-card-icon">${icon(offerIcon(o), 16)}</div>
+                    <span class="mini-card-external">${icon("externalLink", 13)}</span>
+                  </div>
                   <div class="mini-card-title">${escapeHtml(offerTitle(o))}</div>
                 </a>`
               : `<div class="mini-card" data-goto="offers">
