@@ -498,11 +498,22 @@
           <button class="section-link" data-goto="offers">Alle ansehen</button>
         </div>
         <div class="mini-cards">
-          ${offers.map((o) => `
-            <div class="mini-card">
-              <div class="mini-card-icon">${icon(offerIcon(o), 16)}</div>
-              <div class="mini-card-title">${escapeHtml(o.headline || "")}</div>
-            </div>`).join("")}
+          ${offers.map((o) => {
+            // Direkter Einsprung in den Angebotslink beim Klick (o.link,
+            // gleiche Markdown-/Domain-Erkennung wie in renderOffers()) –
+            // fehlt der Link, fällt die Karte wie bisher auf den Sprung zum
+            // Tab "Zusatzleistungen" zurück (data-goto, siehe renderAll()).
+            const url = offerLinkUrl(o.link);
+            return url
+              ? `<a class="mini-card" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">
+                  <div class="mini-card-icon">${icon(offerIcon(o), 16)}</div>
+                  <div class="mini-card-title">${escapeHtml(o.headline || "")}</div>
+                </a>`
+              : `<div class="mini-card" data-goto="offers">
+                  <div class="mini-card-icon">${icon(offerIcon(o), 16)}</div>
+                  <div class="mini-card-title">${escapeHtml(o.headline || "")}</div>
+                </div>`;
+          }).join("")}
         </div>
       </div>` : ""}
     `;
