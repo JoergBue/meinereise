@@ -121,17 +121,31 @@ API das unterstützt, ist ungeklärt).
 
 ## 6. "In der Nähe" (Google Places) ✅ umgesetzt / Viator noch offen
 
-Im Reiseplan wird zum Hotel-Standort des jeweiligen Tages
-(`locationLatitude`/`locationLongitude`) über die Google Places API
-("New", `searchNearby`) eine kleine Auswahl nahegelegener Restaurants und
-Sehenswürdigkeiten angezeigt (Name, Bewertung, Kategorie, Link zu Google
-Maps). Serverseitig `/api/places`, Key (`GOOGLE_PLACES_API_KEY` in `.env`)
-– ohne Konfiguration bzw. bei fehlgeschlagenem Live-Aufruf Demo-Orte
-(Beispielorte rund um Taormina), gleiches Fallback-Muster wie bei
-`GetReiseData`/`GetOffice`. Ergebnisse werden serverseitig 30 Minuten pro
-Standort gecacht (Kostenkontrolle). Bisher nur für den Hotel-Standort –
-Kreuzfahrthäfen (nur Portname, keine Koordinaten in `cruiseRouteDet`)
-sind noch nicht angebunden.
+Im Reiseplan wird zum Standort des jeweiligen Tages über die Google Places
+API ("New") eine kleine Auswahl nahegelegener Orte angezeigt (Name,
+Bewertung, Kategorie, Link zu Google Maps), serverseitig über `/api/places`
+(`GOOGLE_PLACES_API_KEY` in `.env`, ohne Konfiguration bzw. bei
+fehlgeschlagenem Live-Aufruf Demo-Orte, gleiches Fallback-Muster wie bei
+`GetReiseData`/`GetOffice`). Ergebnisse werden serverseitig 30 Minuten pro
+Standort gecacht (Kostenkontrolle). Zwei Varianten, je nachdem, was der Tag
+hergibt (siehe `placesQueryForDay()` in `app.js`):
+
+- **Hotel-Tage**: `locationLatitude`/`locationLongitude` sind direkt
+  vorhanden → Umkreissuche (`searchNearby`), Restaurants **und**
+  Sehenswürdigkeiten.
+- **Kreuzfahrt-Landgangstage**: `cruiseRouteDet` liefert nur den Hafen-
+  namen, keine Koordinaten – dafür stattdessen eine Textsuche
+  (`searchText`, `fetchAttractionsByPortText()` in `server.js`) mit dem
+  Hafennamen im Suchtext, und zwar bewusst **nur Sehenswürdigkeiten** (an
+  Bord gibt es genug zu essen, kein Restaurant-Aufruf für diesen Fall).
+  Demo-Fallback über `demoPortPlacesData()` in `demoData.js` (feste
+  Beispielorte für Taormina/Palermo, sonst nur ein genereller
+  Google-Maps-Suchlink statt erfundener Sehenswürdigkeiten).
+- **Seetage** (kein Hafen) sowie Tage ohne Hotel/Kreuzfahrt: keine
+  Anzeige, kein API-Aufruf.
+
+Bei bereits beendeten Reisen entfällt "In der Nähe" ohnehin komplett (siehe
+Punkt 8 unten).
 
 Noch offen: **Viator API** für buchbare Ausflüge/Touren (statt nur
 Empfehlungen anzuzeigen, echte Produkte mit Bildern/Preisen/Buchungslink

@@ -12,7 +12,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { demoReiseData, demoOfficeData, demoPlacesData } = require("./demoData");
+const { demoReiseData, demoOfficeData, demoPlacesData, demoPortPlacesData } = require("./demoData");
 
 loadDotEnv(path.join(__dirname, ".env"));
 
@@ -333,18 +333,37 @@ async function handleOffice(res) {
   }
 }
 
-// "In der Nähe" (siehe TODO.md) – Google Places API (New), searchNearby.
-// Zwei getrennte Aufrufe (Restaurants/Sehenswürdigkeiten) statt einem
-// gemeinsamen mit mehreren includedTypes, damit die Zuordnung eindeutig
-// ist und das Frontend die Antwort nicht selbst nachsortieren muss.
+// "In der Nähe" (siehe TODO.md) – Google Places API (New). Zwei Varianten:
+// - Koordinaten (Hotel-Standort): searchNearby, zwei getrennte Aufrufe
+//   (Restaurants/Sehenswürdigkeiten) statt einem gemeinsamen mit mehreren
+//   includedTypes, damit die Zuordnung eindeutig ist und das Frontend die
+//   Antwort nicht selbst nachsortieren muss.
+// - Hafenname (Kreuzfahrttag, siehe fetchAttractionsByPortText): cruise-
+//   RouteDet liefert nur den Hafennamen, keine Koordinaten (siehe
+//   placesQueryForDay() in app.js) – dafür stattdessen searchText mit dem
+//   Namen im Suchtext. Nur Sehenswürdigkeiten, bewusst keine Restaurants
+//   (an Bord gibt es genug zu essen).
 const PLACES_FIELD_MASK = "places.displayName,places.rating,places.userRatingCount,places.primaryTypeDisplayName,places.googleMapsUri";
 
-// Ergebnisse pro Standort (auf ca. 110m gerundete Koordinaten) kurz cachen,
-// damit ein mehrfacher Tageswechsel zum selben Hotel nicht jedes Mal erneut
-// gegen Google abgerechnet wird. Rein In-Memory, geht beim Neustart verloren
-// – für die aktuelle Nutzung (eine kleine Reisegruppe) ausreichend.
-const placesCache = new Map(); // "lat,lon" -> { time, payload }
+// Ergebnisse pro Standort (auf ca. 110m gerundete Koordinaten, oder
+// normalisierter Hafenname) kurz cachen, damit ein mehrfacher Tageswechsel
+// zum selben Ort nicht jedes Mal erneut gegen Google abgerechnet wird. Rein
+// In-Memory, geht beim Neustart verloren – für die aktuelle Nutzung (eine
+// kleine Reisegruppe) ausreichend.
+const placesCache = new Map(); // "lat,lon" bzw. "port:<name>" -> { time, payload }
 const PLACES_CACHE_TTL_MS = 30 * 60 * 1000;
+
+function mapPlacesResponse(json) {
+  return (json.places || [])
+    .map((p) => ({
+      name: (p.displayName && p.displayName.text) || "",
+      rating: typeof p.rating === "number" ? p.rating : null,
+      ratingCount: p.userRatingCount || 0,
+      typeLabel: (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || "",
+      mapsUrl: p.googleMapsUri || ""
+    }))
+    .filter((p) => p.name);
+}
 
 async function fetchPlacesByType(lat, lon, includedType) {
   const response = await fetch("https://places.googleapis.com/v1/places:searchNearby", {
@@ -368,37 +387,57 @@ async function fetchPlacesByType(lat, lon, includedType) {
     throw new Error(`Places API antwortete mit Status ${response.status}`);
   }
 
-  const json = await response.json();
-  return (json.places || [])
-    .map((p) => ({
-      name: (p.displayName && p.displayName.text) || "",
-      rating: typeof p.rating === "number" ? p.rating : null,
-      ratingCount: p.userRatingCount || 0,
-      typeLabel: (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || "",
-      mapsUrl: p.googleMapsUri || ""
-    }))
-    .filter((p) => p.name);
+  return mapPlacesResponse(await response.json());
+}
+
+// Kreuzfahrthafen ohne Koordinaten: Places-Textsuche statt Umkreissuche, der
+// Ortsname steckt direkt im Suchtext ("Sehenswürdigkeiten in <Hafen>").
+async function fetchAttractionsByPortText(port) {
+  const response = await fetch("https://places.googleapis.com/v1/places:searchText", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+      "X-Goog-FieldMask": PLACES_FIELD_MASK
+    },
+    body: JSON.stringify({
+      textQuery: `Sehenswürdigkeiten in ${port}`,
+      includedType: "tourist_attraction",
+      maxResultCount: 6,
+      languageCode: "de"
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Places API antwortete mit Status ${response.status}`);
+  }
+
+  return mapPlacesResponse(await response.json());
 }
 
 async function handlePlaces(url, res) {
   const lat = parseFloat(url.searchParams.get("lat"));
   const lon = parseFloat(url.searchParams.get("lon"));
+  const port = (url.searchParams.get("port") || "").trim();
+  const hasCoords = Number.isFinite(lat) && Number.isFinite(lon);
 
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-    sendJson(res, 400, { error: "lat/lon fehlt oder ungültig" });
+  if (!hasCoords && !port) {
+    sendJson(res, 400, { error: "lat/lon oder port fehlt oder ungültig" });
     return;
   }
+
+  const cacheKey = hasCoords ? `${lat.toFixed(3)},${lon.toFixed(3)}` : `port:${port.toLowerCase()}`;
+  const demoFallback = hasCoords ? demoPlacesData(lat, lon) : demoPortPlacesData(port);
 
   if (!isPlacesLiveConfigured) {
     sendJson(res, 200, {
       source: "demo",
       hinweis: "GOOGLE_PLACES_API_KEY ist nicht in .env gesetzt – es werden Demo-Orte angezeigt.",
-      data: demoPlacesData(lat, lon)
+      data: demoFallback
     });
     return;
   }
 
-  const cacheKey = `${lat.toFixed(3)},${lon.toFixed(3)}`;
   const cached = placesCache.get(cacheKey);
   if (cached && Date.now() - cached.time < PLACES_CACHE_TTL_MS) {
     sendJson(res, 200, { source: "live", data: cached.payload });
@@ -406,11 +445,16 @@ async function handlePlaces(url, res) {
   }
 
   try {
-    const [restaurants, attractions] = await Promise.all([
-      fetchPlacesByType(lat, lon, "restaurant"),
-      fetchPlacesByType(lat, lon, "tourist_attraction")
-    ]);
-    const payload = { restaurants, attractions };
+    let payload;
+    if (hasCoords) {
+      const [restaurants, attractions] = await Promise.all([
+        fetchPlacesByType(lat, lon, "restaurant"),
+        fetchPlacesByType(lat, lon, "tourist_attraction")
+      ]);
+      payload = { restaurants, attractions };
+    } else {
+      payload = { restaurants: [], attractions: await fetchAttractionsByPortText(port) };
+    }
     placesCache.set(cacheKey, { time: Date.now(), payload });
     sendJson(res, 200, { source: "live", data: payload });
   } catch (err) {
@@ -418,7 +462,7 @@ async function handlePlaces(url, res) {
     sendJson(res, 200, {
       source: "demo",
       hinweis: `Live-Aufruf fehlgeschlagen (${err.message}) – es werden Demo-Orte angezeigt.`,
-      data: demoPlacesData(lat, lon)
+      data: demoFallback
     });
   }
 }

@@ -545,4 +545,38 @@ function demoPlacesData(lat, lon) {
   };
 }
 
-module.exports = { demoReiseData, demoOfficeData, demoPlacesData };
+// "In der Nähe" an Kreuzfahrttagen (Landgang) – siehe handlePlaces() in
+// server.js/placesQueryForDay() in app.js: cruiseRouteDet liefert nur den
+// Hafennamen, keine Koordinaten, daher hier nach Namen statt lat/lon.
+// Bewusst nur Sehenswürdigkeiten (keine Restaurants, an Bord gibt es genug
+// zu essen). Nur für die Häfen aus den Demo-Reisedaten oben (Taormina,
+// Palermo) feste Beispielorte hinterlegt; für einen unbekannten Hafen wird
+// bewusst keine konkret benannte Sehenswürdigkeit erfunden, sondern nur ein
+// generischer Google-Maps-Suchlink zum Hafen selbst angeboten.
+const DEMO_PORT_ATTRACTIONS = {
+  taormina: [
+    { name: "Teatro Antico di Taormina", rating: 4.7, ratingCount: 24500, typeLabel: "Sehenswürdigkeit", mapsUrl: "https://www.google.com/maps/search/?api=1&query=Teatro+Antico+di+Taormina" },
+    { name: "Isola Bella", rating: 4.6, ratingCount: 18700, typeLabel: "Naturschutzgebiet", mapsUrl: "https://www.google.com/maps/search/?api=1&query=Isola+Bella+Taormina" }
+  ],
+  palermo: [
+    { name: "Cattedrale di Palermo", rating: 4.6, ratingCount: 15200, typeLabel: "Kathedrale", mapsUrl: "https://www.google.com/maps/search/?api=1&query=Cattedrale+di+Palermo" },
+    { name: "Teatro Massimo", rating: 4.7, ratingCount: 21300, typeLabel: "Opernhaus", mapsUrl: "https://www.google.com/maps/search/?api=1&query=Teatro+Massimo+Palermo" },
+    { name: "Mercato del Capo", rating: 4.4, ratingCount: 3800, typeLabel: "Markt", mapsUrl: "https://www.google.com/maps/search/?api=1&query=Mercato+del+Capo+Palermo" }
+  ]
+};
+
+function demoPortPlacesData(port) {
+  const key = (port || "").trim().toLowerCase();
+  const attractions = DEMO_PORT_ATTRACTIONS[key] || [
+    {
+      name: `Sehenswürdigkeiten in ${port}`,
+      rating: null,
+      ratingCount: 0,
+      typeLabel: "",
+      mapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("Sehenswürdigkeiten " + port)}`
+    }
+  ];
+  return { restaurants: [], attractions };
+}
+
+module.exports = { demoReiseData, demoOfficeData, demoPlacesData, demoPortPlacesData };

@@ -212,10 +212,11 @@
     activeDay: null,
     activeOfferFilter: "all",
     showAlarm: false,
-    // "In der Nähe" (Google Places, siehe placesLocationForDay/loadNearbyPlaces):
-    // pro Standort ("lat,lon" gerundet) das Ergebnis (oder "loading"/"error")
-    // zwischenspeichern, damit ein Tageswechsel hin und her nicht jedes Mal
-    // neu vom Server lädt.
+    // "In der Nähe" (Google Places, siehe placesQueryForDay/loadNearbyPlaces):
+    // pro Standort ("lat,lon" gerundet, oder "port:<hafenname>" an
+    // Kreuzfahrttagen) das Ergebnis (oder "loading"/"error") zwischen-
+    // speichern, damit ein Tageswechsel hin und her nicht jedes Mal neu vom
+    // Server lädt.
     placesCache: new Map()
   };
 
@@ -411,24 +412,36 @@
       && item.checkInDate <= dayKeyStr && dayKeyStr <= item.checkOutDate) || null;
   }
 
-  // Standort für "In der Nähe" (Google Places, siehe loadNearbyPlaces weiter
-  // unten) – bisher nur aus dem Hotel dieses Tages (locationLatitude/
-  // -Longitude sind dort bereits vorhanden). Eine Geokodierung von
-  // Kreuzfahrthäfen (cruiseRouteDet liefert nur den Portnamen, keine
-  // Koordinaten) wäre ein möglicher nächster Ausbauschritt.
+  // Anfrage für "In der Nähe" (Google Places, siehe loadNearbyPlaces weiter
+  // unten) für einen Reisetag – zwei mögliche Formen:
+  // - { type: "coords", lat, lon }: Hotel-Standort (locationLatitude/
+  //   -Longitude sind dort bereits vorhanden) – wie bisher.
+  // - { type: "port", port }: Kreuzfahrttag mit Landgang. cruiseRouteDet
+  //   liefert nur den Hafennamen, keine Koordinaten (siehe cruiseRouteStops
+  //   weiter unten) – der Server löst den Ort dafür über eine Google-Places-
+  //   Textsuche statt einer Koordinaten-Umkreissuche auf (siehe server.js
+  //   handlePlaces/fetchAttractionsByPortText). Bewusst nur Sehenswürdig-
+  //   keiten, keine Restaurants (an Bord gibt es genug zu essen) – siehe
+  //   renderNearbyPlaces().
+  // null an Seetagen (kein Hafen) oder ohne Hotel-Koordinaten.
   //
   // Läuft an diesem Tag zusätzlich eine Kreuzfahrt (cruiseForDay), ist der
   // Gast nicht am Hotel, auch wenn checkInDate/checkOutDate den Tag
   // formal mit einschließen (z.B. während eines Landausflugs vom Schiff) –
   // gleiche Priorität Kreuzfahrt > Hotel wie in renderEmptyDay().
-  function placesLocationForDay(dayKeyStr) {
-    if (cruiseForDay(dayKeyStr)) return null;
+  function placesQueryForDay(dayKeyStr) {
+    const cruise = cruiseForDay(dayKeyStr);
+    if (cruise) {
+      const stop = cruiseRouteStopForDay(cruise, dayKeyStr);
+      if (!stop || stop.isSeaDay || !stop.port) return null;
+      return { type: "port", port: stop.port };
+    }
     const hotel = hotelForDay(dayKeyStr);
     if (!hotel) return null;
     const lat = parseFloat(hotel.locationLatitude);
     const lon = parseFloat(hotel.locationLongitude);
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-    return { lat, lon };
+    return { type: "coords", lat, lon };
   }
 
   // Analog zu hotelForDay: die Kreuzfahrt selbst ist nur EIN ReiseVerlauf-
@@ -703,22 +716,31 @@
 
   // ---------- "In der Nähe" (Google Places) ----------
   //
-  // Zeigt zum Standort des Hotels dieses Tages (siehe placesLocationForDay)
-  // ein paar nahegelegene Restaurants/Sehenswürdigkeiten – serverseitig
-  // über /api/places (Google Places API, mit Demo-Fallback ohne API-Key,
-  // gleiches Muster wie /api/reisedaten und /api/office).
+  // Zeigt zum Standort dieses Reisetages (siehe placesQueryForDay) ein paar
+  // nahegelegene Restaurants/Sehenswürdigkeiten – serverseitig über
+  // /api/places (Google Places API, mit Demo-Fallback ohne API-Key, gleiches
+  // Muster wie /api/reisedaten und /api/office). An Kreuzfahrttagen liefert
+  // der Server dafür nur Sehenswürdigkeiten (keine Restaurants, siehe
+  // handlePlaces() in server.js) – die vorhandene restaurants.length-Prüfung
+  // unten blendet die Restaurant-Zeile dann von selbst aus.
 
-  function placesCacheKey(lat, lon) {
-    // Auf 3 Nachkommastellen gerundet (~110m) statt exakter Koordinaten,
-    // damit minimale Abweichungen nicht zu unnötig vielen Cache-Einträgen/
-    // Serveraufrufen führen.
-    return `${lat.toFixed(3)},${lon.toFixed(3)}`;
+  function placesCacheKey(query) {
+    // Bei Koordinaten auf 3 Nachkommastellen gerundet (~110m) statt exakter
+    // Werte, damit minimale Abweichungen nicht zu unnötig vielen Cache-
+    // Einträgen/Serveraufrufen führen. Bei einem Hafennamen (Kreuzfahrttag)
+    // reicht der normalisierte Name als Schlüssel.
+    return query.type === "port"
+      ? `port:${query.port.trim().toLowerCase()}`
+      : `${query.lat.toFixed(3)},${query.lon.toFixed(3)}`;
   }
 
-  async function loadNearbyPlaces(lat, lon, key) {
+  async function loadNearbyPlaces(query, key) {
     state.placesCache.set(key, "loading");
     try {
-      const res = await fetch(`/api/places?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`);
+      const params = query.type === "port"
+        ? `port=${encodeURIComponent(query.port)}`
+        : `lat=${encodeURIComponent(query.lat)}&lon=${encodeURIComponent(query.lon)}`;
+      const res = await fetch(`/api/places?${params}`);
       const json = await res.json();
       if (!res.ok || !json.data) throw new Error("Unerwartete Antwort");
       state.placesCache.set(key, {
@@ -732,9 +754,10 @@
     // Nur neu rendern, wenn währenddessen nicht die Ansicht oder der Tag
     // gewechselt wurde – sonst würde ein längst verlassener Ladevorgang die
     // Anzeige eines inzwischen anderen Tages/einer anderen View überschreiben.
+    const currentQuery = placesQueryForDay(state.activeDay);
     const stillRelevant = state.activeView === "plan"
-      && placesLocationForDay(state.activeDay)
-      && placesCacheKey(placesLocationForDay(state.activeDay).lat, placesLocationForDay(state.activeDay).lon) === key;
+      && currentQuery
+      && placesCacheKey(currentQuery) === key;
     if (stillRelevant) renderPlan();
   }
 
@@ -753,12 +776,12 @@
       </div>`;
   }
 
-  function renderNearbyPlaces(lat, lon) {
-    const key = placesCacheKey(lat, lon);
+  function renderNearbyPlaces(query) {
+    const key = placesCacheKey(query);
     const cached = state.placesCache.get(key);
 
     if (!cached || cached === "loading") {
-      if (!cached) loadNearbyPlaces(lat, lon, key);
+      if (!cached) loadNearbyPlaces(query, key);
       return `
         <div class="places-section">
           <div class="places-title">${icon("pin", 15)} ${I18N.t("places.nearby")}</div>
@@ -830,7 +853,7 @@
     if (!state.activeDay && days.length) state.activeDay = days[0].key;
 
     const activeItems = state.activeDay ? verlaufForDay(state.activeDay) : [];
-    const placesLoc = state.activeDay ? placesLocationForDay(state.activeDay) : null;
+    const placesQuery = state.activeDay ? placesQueryForDay(state.activeDay) : null;
 
     return `
       <div>
@@ -851,7 +874,7 @@
           : renderEmptyDay(state.activeDay)}
       </div>
 
-      ${placesLoc ? renderNearbyPlaces(placesLoc.lat, placesLoc.lon) : ""}
+      ${placesQuery ? renderNearbyPlaces(placesQuery) : ""}
     `;
   }
 
