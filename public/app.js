@@ -1907,10 +1907,22 @@
   // Veranstalter fällig, nicht über das Reisebüro (siehe
   // leistungPaymentNote()) – das entscheidet auch die Summenbildung unten.
 
-  const LEISTUNG_STATUS_CODES = ["OF", "BE", "OP", "ST"];
+  // "BU" ist neben "BE" ein weiterer in der Praxis vorkommender Status-Code
+  // für "Bestätigt" (gleiche Bedeutung) – daher auf denselben i18n-Key bzw.
+  // dieselbe Badge-Farbe wie "BE" abgebildet, statt einen eigenen
+  // (übersetzten) Text/eine eigene Farbe dafür zu pflegen.
+  const LEISTUNG_STATUS_LABEL_KEYS = {
+    OF: "price.statusOF", BE: "price.statusBE", BU: "price.statusBE", OP: "price.statusOP", ST: "price.statusST"
+  };
+  const LEISTUNG_STATUS_BADGE_CLASS = { OF: "OF", BE: "BE", BU: "BE", OP: "OP", ST: "ST" };
 
   function leistungStatusLabel(status) {
-    return LEISTUNG_STATUS_CODES.includes(status) ? I18N.t("price.status" + status) : (status || "");
+    const key = LEISTUNG_STATUS_LABEL_KEYS[status];
+    return key ? I18N.t(key) : (status || "");
+  }
+
+  function leistungStatusBadgeClass(status) {
+    return LEISTUNG_STATUS_BADGE_CLASS[status] || status || "";
   }
 
   function reiseLeistungList() {
@@ -1960,7 +1972,7 @@
                 <div class="price-row-operator">${escapeHtml(item.touroperatorName || "")}</div>
                 <div class="price-row-text">${escapeHtml(item.text || "")}</div>
               </div>
-              <div class="price-status-badge price-status-${escapeHtml(item.status || "")}">${escapeHtml(leistungStatusLabel(item.status))}</div>
+              <div class="price-status-badge price-status-${escapeHtml(leistungStatusBadgeClass(item.status))}">${escapeHtml(leistungStatusLabel(item.status))}</div>
             </div>
             <div class="price-row-meta">${escapeHtml(maskBookingNo(item.bookingNo))} · ${[fmtDate(item.startDate), fmtDate(item.endEnd)].filter(Boolean).join(" – ")}</div>
             <div class="price-row-bottom">
