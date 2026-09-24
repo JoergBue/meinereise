@@ -1180,11 +1180,11 @@
     const [heroPic, ...stripPics] = visible;
     return `
       <div class="hotel-gallery-hero">
-        <img src="${escapeHtml(heroPic)}" alt="" loading="lazy" onerror="this.closest('.hotel-gallery-hero').remove();">
+        <img src="${escapeHtml(heroPic)}" alt="" loading="lazy" data-gallery-index="0" onerror="this.closest('.hotel-gallery-hero').remove();">
       </div>
       ${stripPics.length || remaining.length ? `
       <div class="hotel-gallery-strip">
-        ${stripPics.map((src) => `<img src="${escapeHtml(src)}" alt="" loading="lazy" onerror="this.remove();">`).join("")}
+        ${stripPics.map((src, i) => `<img src="${escapeHtml(src)}" alt="" loading="lazy" data-gallery-index="${i + 1}" onerror="this.remove();">`).join("")}
         ${remaining.length ? `<button type="button" class="hotel-gallery-more" data-remaining-count="${remaining.length}">+${remaining.length}<span>${I18N.t("hotel.more")}</span></button>` : ""}
       </div>` : ""}
     `;
@@ -1195,16 +1195,130 @@
     const stripEl = container.querySelector(".hotel-gallery-strip");
     if (!moreBtn || !stripEl) return;
     moreBtn.addEventListener("click", () => {
-      remaining.forEach((src) => {
+      remaining.forEach((src, i) => {
         const img = document.createElement("img");
         img.src = src;
         img.alt = "";
         img.loading = "lazy";
+        img.dataset.galleryIndex = String(GALLERY_INITIAL_COUNT + i);
         img.addEventListener("error", () => img.remove());
         stripEl.insertBefore(img, moreBtn);
       });
       moreBtn.remove();
     });
+  }
+
+  // Klick auf eines der (auch nachgeladenen, siehe loadRemainingMediaPics)
+  // Vorschaubilder öffnet ein Vollbild-Karussell über ALLE Bilder (nicht nur
+  // die anfangs geladenen 3) – die Anfangsbegrenzung selbst bleibt davon
+  // unberührt, geladen wird weiterhin nur, was tatsächlich angeschaut wird
+  // (siehe openGalleryLightbox: pro Bild ein eigenes <img loading="lazy">,
+  // der Browser holt es erst beim Erreichen des Slides). Per Event-
+  // Delegation auf dem gesamten Container statt einzelner Listener pro
+  // <img>, damit auch später von loadRemainingMediaPics eingefügte Bilder
+  // ohne erneutes Binden funktionieren.
+  function wireMediaGallery(container, pics) {
+    container.addEventListener("click", (event) => {
+      const img = event.target.closest("[data-gallery-index]");
+      if (!img) return;
+      const idx = parseInt(img.dataset.galleryIndex, 10);
+      if (Number.isFinite(idx)) openGalleryLightbox(pics, idx);
+    });
+  }
+
+  // Vollbild-Bilderkarussell (Hotel-/Kreuzfahrt-Galerie). Horizontales
+  // Scroll-Snap statt einer JS-Swipe-Bibliothek (passt zur Zero-Dependency-
+  // Philosophie der App, funktioniert nativ per Touch-Wisch wie per
+  // Pfeiltasten/Buttons). Jeder Slide bekommt ein eigenes <img
+  // loading="lazy">, dadurch lädt der Browser auch hier nur Bilder, die
+  // tatsächlich (fast) in Sicht kommen, nicht alle auf einmal.
+  function openGalleryLightbox(pics, startIndex) {
+    if (!pics.length) return;
+    const startIdx = Math.max(0, Math.min(startIndex, pics.length - 1));
+
+    const overlay = document.createElement("div");
+    overlay.className = "gallery-lightbox";
+    overlay.innerHTML = `
+      <button type="button" class="gallery-lightbox-close" aria-label="${I18N.t("overview.close")}">${icon("close", 20)}</button>
+      ${pics.length > 1 ? `<div class="gallery-lightbox-counter" aria-live="polite"></div>` : ""}
+      <div class="gallery-lightbox-track">
+        ${pics.map((src) => `
+          <div class="gallery-lightbox-slide">
+            <img src="${escapeHtml(src)}" alt="" loading="lazy" onerror="this.closest('.gallery-lightbox-slide').classList.add('is-error')">
+          </div>
+        `).join("")}
+      </div>
+      ${pics.length > 1 ? `
+      <button type="button" class="gallery-lightbox-nav gallery-lightbox-prev" aria-label="${I18N.t("hotel.galleryPrev")}">${icon("chevronLeft", 22)}</button>
+      <button type="button" class="gallery-lightbox-nav gallery-lightbox-next" aria-label="${I18N.t("hotel.galleryNext")}">${icon("chevronRight", 22)}</button>` : ""}
+    `;
+    document.body.appendChild(overlay);
+    document.body.classList.add("gallery-lightbox-open");
+
+    const track = overlay.querySelector(".gallery-lightbox-track");
+    const counterEl = overlay.querySelector(".gallery-lightbox-counter");
+    const slides = Array.from(overlay.querySelectorAll(".gallery-lightbox-slide"));
+    let current = startIdx;
+
+    function updateCounter() {
+      if (!counterEl) return;
+      counterEl.textContent = `${current + 1} / ${pics.length}`;
+      counterEl.setAttribute("aria-label", I18N.t("hotel.galleryImageOf", { current: current + 1, total: pics.length }));
+    }
+
+    function scrollToIndex(i, behavior) {
+      slides[i].scrollIntoView({ behavior, block: "nearest", inline: "start" });
+    }
+
+    function close() {
+      document.body.classList.remove("gallery-lightbox-open");
+      document.removeEventListener("keydown", onKeydown);
+      observer.disconnect();
+      overlay.remove();
+    }
+
+    function go(delta) {
+      current = Math.max(0, Math.min(current + delta, pics.length - 1));
+      scrollToIndex(current, "smooth");
+      updateCounter();
+    }
+
+    function onKeydown(event) {
+      if (event.key === "Escape") close();
+      else if (event.key === "ArrowLeft") go(-1);
+      else if (event.key === "ArrowRight") go(1);
+    }
+
+    overlay.querySelector(".gallery-lightbox-close").addEventListener("click", close);
+    // Klick auf den dunklen Rand (nicht auf einen Button oder das Bild
+    // selbst) schließt ebenfalls, wie bei einem typischen Lightbox-
+    // Verhalten – das schließt auch die Padding-Fläche um das Bild herum
+    // im jeweiligen Slide mit ein, nicht nur den Track/Overlay selbst.
+    overlay.addEventListener("click", (event) => {
+      if (event.target.tagName !== "IMG" && !event.target.closest("button")) close();
+    });
+    const prevBtn = overlay.querySelector(".gallery-lightbox-prev");
+    const nextBtn = overlay.querySelector(".gallery-lightbox-next");
+    if (prevBtn) prevBtn.addEventListener("click", () => go(-1));
+    if (nextBtn) nextBtn.addEventListener("click", () => go(1));
+    document.addEventListener("keydown", onKeydown);
+
+    // Zähler bei manuellem Wischen/Scrollen (nicht nur bei den Prev/Next-
+    // Buttons) synchron halten.
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+          current = slides.indexOf(entry.target);
+          updateCounter();
+        }
+      });
+    }, { root: track, threshold: [0.5] });
+    slides.forEach((slide) => observer.observe(slide));
+
+    // Ohne Animation direkt zum angeklickten Bild springen (kein sichtbares
+    // Durchscrollen von Bild 1 zum tatsächlich gewünschten Bild).
+    scrollToIndex(startIdx, "instant");
+    updateCounter();
   }
 
   function openHotelDetail(item) {
@@ -1257,6 +1371,9 @@
 
     if (pics.length > GALLERY_INITIAL_COUNT) {
       loadRemainingMediaPics(container, pics.slice(GALLERY_INITIAL_COUNT));
+    }
+    if (pics.length) {
+      wireMediaGallery(container, pics);
     }
   }
 
@@ -1383,6 +1500,9 @@
 
     if (pics.length > GALLERY_INITIAL_COUNT) {
       loadRemainingMediaPics(container, pics.slice(GALLERY_INITIAL_COUNT));
+    }
+    if (pics.length) {
+      wireMediaGallery(container, pics);
     }
   }
 

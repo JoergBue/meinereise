@@ -105,6 +105,9 @@
       "hotel.mapTitle": "Lage des Hotels",
       "hotel.openInOSM": "In OpenStreetMap öffnen",
       "hotel.more": "weitere",
+      "hotel.galleryPrev": "Vorheriges Bild",
+      "hotel.galleryNext": "Nächstes Bild",
+      "hotel.galleryImageOf": "Bild {current} von {total}",
 
       "offers.title": "Zusatzleistungen",
       "offers.subtitle": "Mehr aus deiner Reise machen",
@@ -282,6 +285,9 @@
       "hotel.mapTitle": "Hotel location",
       "hotel.openInOSM": "Open in OpenStreetMap",
       "hotel.more": "more",
+      "hotel.galleryPrev": "Previous image",
+      "hotel.galleryNext": "Next image",
+      "hotel.galleryImageOf": "Image {current} of {total}",
 
       "offers.title": "Add-ons",
       "offers.subtitle": "Get more out of your trip",
@@ -459,6 +465,9 @@
       "hotel.mapTitle": "Emplacement de l'hôtel",
       "hotel.openInOSM": "Ouvrir dans OpenStreetMap",
       "hotel.more": "de plus",
+      "hotel.galleryPrev": "Image précédente",
+      "hotel.galleryNext": "Image suivante",
+      "hotel.galleryImageOf": "Image {current} sur {total}",
 
       "offers.title": "Prestations complémentaires",
       "offers.subtitle": "Profitez encore plus de votre voyage",
@@ -636,6 +645,9 @@
       "hotel.mapTitle": "Posizione dell'hotel",
       "hotel.openInOSM": "Apri in OpenStreetMap",
       "hotel.more": "altre",
+      "hotel.galleryPrev": "Immagine precedente",
+      "hotel.galleryNext": "Immagine successiva",
+      "hotel.galleryImageOf": "Immagine {current} di {total}",
 
       "offers.title": "Servizi aggiuntivi",
       "offers.subtitle": "Scopri di più dal tuo viaggio",
@@ -813,6 +825,9 @@
       "hotel.mapTitle": "Otelin konumu",
       "hotel.openInOSM": "OpenStreetMap'te aç",
       "hotel.more": "daha",
+      "hotel.galleryPrev": "Önceki görsel",
+      "hotel.galleryNext": "Sonraki görsel",
+      "hotel.galleryImageOf": "{total} görselden {current}.",
 
       "offers.title": "Ek hizmetler",
       "offers.subtitle": "Seyahatinden daha fazlasını al",
@@ -990,6 +1005,9 @@
       "hotel.mapTitle": "Τοποθεσία ξενοδοχείου",
       "hotel.openInOSM": "Άνοιγμα στο OpenStreetMap",
       "hotel.more": "ακόμη",
+      "hotel.galleryPrev": "Προηγούμενη εικόνα",
+      "hotel.galleryNext": "Επόμενη εικόνα",
+      "hotel.galleryImageOf": "Εικόνα {current} από {total}",
 
       "offers.title": "Πρόσθετες υπηρεσίες",
       "offers.subtitle": "Απόλαυσε ακόμα περισσότερα από το ταξίδι σου",

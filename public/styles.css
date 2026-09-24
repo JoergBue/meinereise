@@ -489,9 +489,9 @@ html, body {
 }
 .hotel-detail { display: flex; flex-direction: column; gap: 14px; }
 .hotel-gallery-hero { border-radius: 16px; overflow: hidden; height: 190px; background: var(--neutral-chip); }
-.hotel-gallery-hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.hotel-gallery-hero img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: pointer; }
 .hotel-gallery-strip { display: flex; gap: 8px; overflow-x: auto; }
-.hotel-gallery-strip img { width: 84px; height: 64px; object-fit: cover; border-radius: 10px; flex-shrink: 0; }
+.hotel-gallery-strip img { width: 84px; height: 64px; object-fit: cover; border-radius: 10px; flex-shrink: 0; cursor: pointer; }
 .hotel-gallery-more {
   width: 84px; height: 64px; flex-shrink: 0; border-radius: 10px; border: none;
   background: var(--accent-soft); color: var(--accent-ink); cursor: pointer;
@@ -617,4 +617,53 @@ html, body {
 
 @media (max-width: 360px) {
   .form-row-2, .form-check-grid { grid-template-columns: 1fr; }
+}
+
+/* Bilderkarussell (Hotel-/Kreuzfahrt-Galerie), siehe openGalleryLightbox()
+   in app.js. Vollbild-Overlay über der ganzen App, horizontales Scroll-
+   Snap statt JS-Swipe-Bibliothek – funktioniert nativ per Wisch-Geste. */
+body.gallery-lightbox-open { overflow: hidden; }
+
+.gallery-lightbox {
+  position: fixed; inset: 0; z-index: 1000;
+  background: #0a0c0e;
+  display: flex; align-items: center; justify-content: center;
+}
+.gallery-lightbox-track {
+  display: flex; width: 100%; height: 100%;
+  overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.gallery-lightbox-track::-webkit-scrollbar { display: none; }
+.gallery-lightbox-slide {
+  flex: 0 0 100%; width: 100%; height: 100%; scroll-snap-align: start;
+  display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+  padding: 56px 14px;
+}
+.gallery-lightbox-slide img {
+  max-width: 100%; max-height: 100%; object-fit: contain; display: block;
+  border-radius: 8px;
+}
+.gallery-lightbox-slide.is-error { display: none; }
+
+.gallery-lightbox-close, .gallery-lightbox-nav {
+  position: absolute; z-index: 1001;
+  background: rgba(255, 255, 255, 0.12); color: #fff; border: none; border-radius: 50%;
+  width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.gallery-lightbox-close:hover, .gallery-lightbox-nav:hover { background: rgba(255, 255, 255, 0.22); }
+.gallery-lightbox-close { top: 14px; right: 14px; }
+.gallery-lightbox-prev { left: 12px; top: 50%; transform: translateY(-50%); }
+.gallery-lightbox-next { right: 12px; top: 50%; transform: translateY(-50%); }
+.gallery-lightbox-counter {
+  position: absolute; z-index: 1001; top: 16px; left: 50%; transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.12); color: #fff; border-radius: 100px;
+  padding: 6px 13px; font-size: 12.5px; font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .gallery-lightbox-nav { width: 36px; height: 36px; }
+  .gallery-lightbox-slide { padding: 48px 8px; }
 }
