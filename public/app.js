@@ -264,9 +264,7 @@
     state.travelID = getTravelIDFromURL();
 
     if (!state.travelID) {
-      renderFatalError(I18N.t("app.noTravelId", {
-        example: "<code>" + window.location.origin + window.location.pathname + "#&lt;travelID&gt;</code>"
-      }));
+      renderTravelIdEntry();
       return;
     }
     rememberTravelID(state.travelID);
@@ -313,6 +311,56 @@
     } catch (err) {
       renderFatalError(I18N.t("app.loadError", { message: err.message }));
     }
+  }
+
+  // Eingabemaske, falls die App ohne travelID (= HashKey) aufgerufen wird –
+  // typischer Fall: als Symbol auf dem Home-Bildschirm abgelegt. iOS gibt
+  // der installierten App einen eigenen, leeren Speicher (kein Zugriff auf
+  // den in Safari gemerkten Wert, siehe LAST_TRAVEL_ID_KEY), und der Start
+  // erfolgt über start_url ohne "#<travelID>". Der Gast kann dann seinen
+  // Reisecode oder gleich den kompletten Link aus der Mail einfügen; der
+  // Code wird gemerkt, beim nächsten Start ist die Eingabe nicht mehr nötig.
+  function extractTravelID(input) {
+    const value = String(input || "").trim();
+    if (!value) return "";
+    const hashPos = value.indexOf("#");
+    if (hashPos !== -1) return value.slice(hashPos + 1).trim();
+    const m = value.match(/[?&]travelID=([^&#\s]+)/i);
+    if (m) return decodeURIComponent(m[1]);
+    return value;
+  }
+
+  function renderTravelIdEntry() {
+    document.getElementById("view-overview").innerHTML = `
+      <div class="travel-id-entry">
+        <div class="travel-id-entry-icon">${icon("suitcase", 22)}</div>
+        <div class="greeting-name">${I18N.t("entry.title")}</div>
+        <div class="travel-id-entry-text">${I18N.t("entry.text")}</div>
+        <form class="next-trip-form travel-id-form" novalidate>
+          <input type="text" name="travelID" autocomplete="off" autocapitalize="off" spellcheck="false"
+            placeholder="${escapeHtml(I18N.t("entry.placeholder"))}" aria-label="${escapeHtml(I18N.t("entry.placeholder"))}">
+          <div class="error-box" hidden>${I18N.t("entry.empty")}</div>
+          <button type="submit" class="btn-primary">${I18N.t("entry.submit")} ${icon("arrowRight", 16)}</button>
+        </form>
+        <div class="travel-id-entry-hint">${I18N.t("entry.hint")}</div>
+      </div>`;
+
+    const form = document.querySelector(".travel-id-form");
+    const input = form.querySelector("input");
+    const errorBox = form.querySelector(".error-box");
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const id = extractTravelID(input.value);
+      if (!id) {
+        errorBox.hidden = false;
+        input.focus();
+        return;
+      }
+      rememberTravelID(id);
+      // Setzen des Hash löst "hashchange" -> loadReiseData() aus. Gleicher
+      // Hash wie vorher (kein Event) kommt hier nicht vor, da leer.
+      window.location.hash = id;
+    });
   }
 
   function renderFatalError(html) {
@@ -2605,6 +2653,7 @@
       I18N.setLang(select.value);
       I18N.applyStaticTranslations();
       if (state.data) renderAll();
+      else if (!state.travelID) renderTravelIdEntry(); // Eingabemaske übersetzen
     });
   }
 
