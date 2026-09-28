@@ -12,7 +12,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { demoReiseData, demoOfficeData, demoPlacesData, demoPortPlacesData } = require("./demoData");
+const { demoReiseData, demoOfficeData, demoPlacesData, demoPortPlacesData, demoFlightStatus } = require("./demoData");
 
 loadDotEnv(path.join(__dirname, ".env"));
 
@@ -72,6 +72,28 @@ const GOOGLE_PLACES_API_KEY = process.env.GOOGLE_PLACES_API_KEY || "";
 // (Empfang statt Abruf): der Nutzer soll nie einen technischen Fehler für
 // etwas sehen, das er nicht beheben kann, das Büro kann bei Bedarf im Log
 // nachschauen.
+// Reisebewertung (separates Projekt "feedback", Route /bewertung/{hashKey})
+// – nach Reiseende erscheint auf der Startseite ein Link dorthin. Die URL
+// ist ein Template: "{hashKey}" (alias "{travelID}") wird durch die
+// travelID dieser Reise ersetzt – sie ist derselbe HashKey, den auch die
+// Bewertungs-App auflöst. Ohne Platzhalter wird die URL unverändert
+// verwendet (praktisch zum lokalen Testen mit einem festen HashKey).
+// Leer: kein Bewertungslink.
+const BEWERTUNG_URL = (process.env.BEWERTUNG_URL || "").trim();
+
+function buildBewertungUrl(travelID) {
+  if (!BEWERTUNG_URL) return "";
+  return BEWERTUNG_URL.replace(/\{(hashKey|travelID)\}/g, encodeURIComponent(travelID));
+}
+
+// Flugstatus (AeroDataBox) – Live-Status zu den Flugsegmenten im Reiseplan
+// (siehe handleFlightStatus). Standard ist der Zugang über RapidAPI; bei
+// einem anderen Marktplatz (API.Market) oder dem Direktzugang Basis-URL
+// und Header-Namen für den Key in .env anpassen. Ohne Key: Demo-Status.
+const AERODATABOX_API_KEY = process.env.AERODATABOX_API_KEY || "";
+const AERODATABOX_BASE_URL = process.env.AERODATABOX_BASE_URL || "https://aerodatabox.p.rapidapi.com";
+const AERODATABOX_KEY_HEADER = process.env.AERODATABOX_KEY_HEADER || "X-RapidAPI-Key";
+
 const NEXT_TRIP_CGI_URL = process.env.NEXT_TRIP_CGI_URL || "";
 const NEXT_TRIP_CGI_TOKEN = process.env.NEXT_TRIP_CGI_TOKEN || "";
 
@@ -83,6 +105,7 @@ const isLiveConfigured = Boolean(BOSYS_API_URL && BOSYS_SESSION_ID);
 // Beispiel-Antwort, bleibt leer) – nur URL + der eigene Office-Token.
 const isOfficeLiveConfigured = Boolean(BOSYS_API_URL && BOSYS_OFFICE_TOKEN);
 const isPlacesLiveConfigured = Boolean(GOOGLE_PLACES_API_KEY);
+const isFlightStatusLiveConfigured = Boolean(AERODATABOX_API_KEY);
 
 // GetDokument (Dokument-Abruf) braucht zusätzlich zur travelID eine
 // sessionID + officeID – beide liefert GetReiseData in seiner Antwort mit.
@@ -132,6 +155,11 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (url.pathname === "/api/flugstatus") {
+    await handleFlightStatus(url, res);
+    return;
+  }
+
   if (url.pathname === "/api/naechste-reise" && req.method === "POST") {
     await handleNextTripRequest(req, res);
     return;
@@ -152,7 +180,8 @@ async function handleReiseData(url, res) {
     sendJson(res, 200, {
       source: "demo",
       hinweis: "BOSYS_GATEWAY_URL / BOSYS_SESSION_ID sind nicht in .env gesetzt – es werden Demo-Daten angezeigt.",
-      data: demoReiseData(travelID).bns_response.GetReiseData
+      data: demoReiseData(travelID).bns_response.GetReiseData,
+      bewertungUrl: buildBewertungUrl(travelID)
     });
     return;
   }
@@ -204,13 +233,14 @@ async function handleReiseData(url, res) {
       console.warn(`[GetReiseData] Keine officeID in der Antwort gefunden – GetDokument wird für travelID ${travelID} nicht funktionieren.`);
     }
 
-    sendJson(res, 200, { source: "live", data: reiseData });
+    sendJson(res, 200, { source: "live", data: reiseData, bewertungUrl: buildBewertungUrl(travelID) });
   } catch (err) {
     console.error("[GetReiseData] Live-Aufruf fehlgeschlagen, liefere Demo-Daten:", err.message);
     sendJson(res, 200, {
       source: "demo",
       hinweis: `Live-Aufruf fehlgeschlagen (${err.message}) – es werden Demo-Daten angezeigt.`,
-      data: demoReiseData(travelID).bns_response.GetReiseData
+      data: demoReiseData(travelID).bns_response.GetReiseData,
+      bewertungUrl: buildBewertungUrl(travelID)
     });
   }
 }
@@ -486,6 +516,170 @@ async function handlePlaces(url, res) {
   }
 }
 
+// ---------- Flugstatus (AeroDataBox) ----------
+//
+// Live-Flugstatus (Verspätung, Terminal, Gate, Gepäckband, Annullierung)
+// zu einem Flugsegment aus GetReiseData.ReiseVerlauf (type "F"). Das
+// Frontend übergibt nur flightCarrier + flightNumber + departureDate, der
+// API-Key bleibt hier auf dem Server (.env). Ohne Key: Demo-Status.
+//
+// Kostenschutz (jeder AeroDataBox-Aufruf verbraucht Kontingent):
+// 1. Zeitfenster – live abgefragt wird nur ab FLIGHT_STATUS_DAYS_BEFORE
+//    Tage vor dem Abflugtag bis FLIGHT_STATUS_DAYS_AFTER Tag(e) danach.
+//    Außerhalb gibt es ohnehin noch keinen/keinen relevanten Status mehr –
+//    die Route antwortet dann ohne externen Aufruf mit data: null.
+// 2. Server-Cache pro Flug (alle Gäste teilen sich einen Eintrag):
+//    FLIGHT_STATUS_CACHE_TTL_MS für laufende Flüge, deutlich länger für
+//    Endzustände (gelandet/annulliert/umgeleitet) und "nicht gefunden".
+// 3. Gleichzeitige Anfragen zum selben Flug teilen sich einen Aufruf.
+const FLIGHT_STATUS_DAYS_BEFORE = 2;
+const FLIGHT_STATUS_DAYS_AFTER = 1;
+const FLIGHT_STATUS_CACHE_TTL_MS = 5 * 60 * 1000;
+const FLIGHT_STATUS_FINAL_TTL_MS = 6 * 60 * 60 * 1000;
+const FLIGHT_STATUS_NOTFOUND_TTL_MS = 30 * 60 * 1000;
+const FLIGHT_STATUS_FINAL = new Set(["Arrived", "Canceled", "Diverted"]);
+const flightStatusCache = new Map(); // "LH1829_20261003" -> { time, ttl, payload }
+const flightStatusInflight = new Map(); // gleicher Key -> Promise
+
+function flightStatusDayOffset(yyyymmdd) {
+  const y = +yyyymmdd.slice(0, 4), m = +yyyymmdd.slice(4, 6), d = +yyyymmdd.slice(6, 8);
+  const now = new Date();
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((Date.UTC(y, m - 1, d) - today) / 86400000);
+}
+
+async function handleFlightStatus(url, res) {
+  const carrier = (url.searchParams.get("carrier") || "").trim().toUpperCase();
+  // Führende Nullen entfernen ("0123" -> "123"), optionaler Suffix-Buchstabe erlaubt.
+  const flight = (url.searchParams.get("flight") || "").trim().toUpperCase().replace(/^0+(?=\d)/, "");
+  const date = (url.searchParams.get("date") || "").trim().slice(0, 8);
+  // Optional: Abflughafen (IATA) – wählt bei mehreren Treffern (Mehr-Etappen-
+  // Flug unter einer Nummer) die richtige Etappe aus.
+  const dep = (url.searchParams.get("dep") || "").trim().toUpperCase();
+
+  if (!/^[A-Z0-9]{2,3}$/.test(carrier) || !/^\d{1,4}[A-Z]?$/.test(flight) || !/^\d{8}$/.test(date)) {
+    sendJson(res, 400, { error: "carrier, flight oder date (JJJJMMTT) fehlt oder ungültig" });
+    return;
+  }
+
+  if (!isFlightStatusLiveConfigured) {
+    sendJson(res, 200, {
+      source: "demo",
+      hinweis: "AERODATABOX_API_KEY ist nicht in .env gesetzt – es wird ein Demo-Flugstatus angezeigt.",
+      data: demoFlightStatus(carrier, flight, date)
+    });
+    return;
+  }
+
+  const offset = flightStatusDayOffset(date);
+  if (offset > FLIGHT_STATUS_DAYS_BEFORE || offset < -FLIGHT_STATUS_DAYS_AFTER) {
+    sendJson(res, 200, { source: "live", data: null, reason: "outside_window" });
+    return;
+  }
+
+  const key = `${carrier}${flight}_${date}_${dep}`;
+  const cached = flightStatusCache.get(key);
+  if (cached && Date.now() - cached.time < cached.ttl) {
+    sendJson(res, 200, { source: "live", data: cached.payload });
+    return;
+  }
+
+  try {
+    let promise = flightStatusInflight.get(key);
+    if (!promise) {
+      promise = fetchFlightStatus(carrier, flight, date, dep)
+        .finally(() => flightStatusInflight.delete(key));
+      flightStatusInflight.set(key, promise);
+    }
+    const payload = await promise;
+    const ttl = !payload ? FLIGHT_STATUS_NOTFOUND_TTL_MS
+      : FLIGHT_STATUS_FINAL.has(payload.status) ? FLIGHT_STATUS_FINAL_TTL_MS
+      : FLIGHT_STATUS_CACHE_TTL_MS;
+    flightStatusCache.set(key, { time: Date.now(), ttl, payload });
+    sendJson(res, 200, { source: "live", data: payload });
+  } catch (err) {
+    console.error(`[Flugstatus] ${carrier}${flight} ${date} fehlgeschlagen:`, err.message);
+    // Kein Demo-Fallback: ein erfundener Status für einen echten Flug wäre
+    // irreführend. Das Frontend blendet den Status dann einfach aus.
+    sendJson(res, 200, { source: "live", data: null, error: err.message });
+  }
+}
+
+async function fetchFlightStatus(carrier, flight, date, dep) {
+  const dateIso = `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`;
+  const base = AERODATABOX_BASE_URL.replace(/\/+$/, "");
+  const apiUrl = `${base}/flights/number/${encodeURIComponent(carrier + flight)}/${dateIso}`
+    + "?withAircraftImage=false&withLocation=false&dateLocalRole=Departure";
+
+  const headers = { Accept: "application/json", [AERODATABOX_KEY_HEADER]: AERODATABOX_API_KEY };
+  // RapidAPI verlangt zusätzlich den Host-Header.
+  const host = new URL(base).host;
+  if (host.endsWith("rapidapi.com")) headers["X-RapidAPI-Host"] = host;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  let response;
+  try {
+    response = await fetch(apiUrl, { headers, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+
+  if (response.status === 204 || response.status === 404) return null; // Flug nicht gefunden
+  if (!response.ok) throw new Error(`AeroDataBox antwortete mit Status ${response.status}`);
+
+  const list = await response.json();
+  if (!Array.isArray(list) || !list.length) return null;
+
+  // Mehrere Treffer möglich (Mehr-Etappen-Flug, Codeshare): passende
+  // Abflug-Etappe bevorzugen, sonst den operierenden Flug, sonst den ersten.
+  const byDep = dep ? list.find((f) => f.departure && f.departure.airport && f.departure.airport.iata === dep) : null;
+  const operating = list.find((f) => f.codeshareStatus !== "IsCodeshared");
+  return normalizeFlightStatus(byDep || operating || list[0]);
+}
+
+// AeroDataBox-Zeit {utc: "2026-10-03 05:30Z", local: "2026-10-03 07:30+02:00"}
+// -> { local: "07:30", utc: <ms> } (lokale Flughafenzeit, wie im Reiseplan).
+function adbTime(t) {
+  if (!t || (!t.local && !t.utc)) return null;
+  const local = (t.local || "").slice(11, 16);
+  const utcMs = t.utc ? Date.parse(t.utc.replace(" ", "T")) : NaN;
+  return { local, utc: Number.isFinite(utcMs) ? utcMs : null };
+}
+
+function normalizeFlightMovement(m) {
+  if (!m) return {};
+  const scheduled = adbTime(m.scheduledTime);
+  // Beste verfügbare Zeit: tatsächlich (runway) > aktualisiert (revised) > Prognose.
+  const actual = adbTime(m.runwayTime);
+  const revised = adbTime(m.revisedTime) || adbTime(m.predictedTime);
+  const best = actual || revised;
+  const delayMin = scheduled && best && scheduled.utc != null && best.utc != null
+    ? Math.round((best.utc - scheduled.utc) / 60000) : null;
+  return {
+    airport: (m.airport && m.airport.iata) || "",
+    scheduled: scheduled ? scheduled.local : "",
+    expected: best ? best.local : "",
+    isActual: !!actual,
+    delayMin,
+    terminal: m.terminal || "",
+    gate: m.gate || "",
+    checkInDesk: m.checkInDesk || "",
+    baggageBelt: m.baggageBelt || ""
+  };
+}
+
+function normalizeFlightStatus(f) {
+  return {
+    number: f.number || "",
+    status: f.status || "Unknown",
+    departure: normalizeFlightMovement(f.departure),
+    arrival: normalizeFlightMovement(f.arrival),
+    aircraft: (f.aircraft && f.aircraft.model) || "",
+    updatedUtc: f.lastUpdatedUtc || ""
+  };
+}
+
 // "Nächste Reise" – nimmt das Formular von der Startseite entgegen (siehe
 // renderNextTrip() in app.js) und pusht es, sofern konfiguriert, an das
 // MidOffice-CGI (NEXT_TRIP_CGI_URL). Einziger POST-Endpunkt der App, daher
@@ -687,6 +881,12 @@ server.listen(PORT, () => {
   console.log(isPlacesLiveConfigured
     ? "In der Nähe (Google Places): Live-Anbindung aktiv."
     : "In der Nähe (Google Places): GOOGLE_PLACES_API_KEY nicht gesetzt – Demo-Orte aktiv.");
+  console.log(BEWERTUNG_URL
+    ? `Reisebewertung: Link nach Reiseende aktiv (${BEWERTUNG_URL}).`
+    : "Reisebewertung: BEWERTUNG_URL nicht gesetzt – kein Bewertungslink auf der Startseite.");
+  console.log(isFlightStatusLiveConfigured
+    ? `Flugstatus (AeroDataBox): Live-Anbindung aktiv (${AERODATABOX_BASE_URL}).`
+    : "Flugstatus (AeroDataBox): AERODATABOX_API_KEY nicht gesetzt – Demo-Flugstatus aktiv.");
   console.log(WHATSAPP_OFFICE_NUMBER
     ? "WhatsApp-Kontakt: WHATSAPP_OFFICE_NUMBER als Fallback konfiguriert (genutzt, falls MyOffice.whatsapp nicht geliefert wird)."
     : "WhatsApp-Kontakt: WHATSAPP_OFFICE_NUMBER nicht gesetzt – nur MyOffice.whatsapp (falls von GetOffice geliefert) aktiviert den Button.");

@@ -218,6 +218,10 @@
     // speichern, damit ein Tageswechsel hin und her nicht jedes Mal neu vom
     // Server lädt.
     placesCache: new Map(),
+    // Flugstatus je Flug ("LH1829_20261003" -> { time, data, hinweis, loading }),
+    // siehe renderFlightStatus().
+    flightStatusCache: new Map(),
+    flightStatusTimer: null,
     // "Nächste Reise" – Absende-Status des Formulars (siehe renderNextTrip()):
     // "submitting" blendet den Button auf "Wird gesendet …" um, "submitted"
     // zeigt die Dankeseite statt des Formulars, "error" eine Inline-Meldung
@@ -286,6 +290,9 @@
 
       state.data = json.data;
       state.source = json.source;
+      // Link zur Reisebewertung (BEWERTUNG_URL in .env, HashKey bereits
+      // serverseitig eingesetzt) – leer, wenn nicht konfiguriert.
+      state.bewertungUrl = json.bewertungUrl || "";
       applyBrandColor(state.data.brandColor);
 
       if (officeRes && officeRes.ok) {
@@ -521,7 +528,11 @@
     const price = fmtPriceFromCents(grund.travelPrice, grund.travelCurrency);
     const heroImg = validGrafikUrl(grund.travelPic);
 
-    const offers = zusatzLeistungList().filter((o) => o.type !== "G007" && (o.headline || o.text)).slice(0, 2);
+    // Nach Reiseende keine Angebots-Empfehlungen mehr auf der Startseite –
+    // an ihre Stelle tritt der Aufruf zur Reisebewertung (renderReviewCta).
+    const offers = status === "ended"
+      ? []
+      : zusatzLeistungList().filter((o) => o.type !== "G007" && (o.headline || o.text)).slice(0, 2);
 
     // "alarm.text" ist optional – kommt sie in der Antwort und ist nicht
     // leer, wird die Glocke aktiv (andere Farbe, anklickbar) und zeigt den
@@ -572,14 +583,21 @@
 
       ${office ? `<div class="agency-info">${I18N.t("overview.mediatedBy", { name: `<strong>${escapeHtml(office.name)}</strong>`, address: escapeHtml(office.address) })}</div>` : ""}
 
-      ${chips.length ? `
+      ${status === "ended" ? renderReviewCta() : ""}
+
+      ${/* Nach Reiseende bewusst reduziert: keine Buchungs-Chips (Flug,
+           Hotel, …) und kein "Reiseplan ansehen"-Button mehr – der Fokus
+           liegt auf Bewertung und nächster Reise. Der Reiseplan bleibt
+           über die Navigation unten erreichbar. */ ""}
+      ${status !== "ended" && chips.length ? `
       <div class="status-row">
         ${chips.map((c) => `<div class="status-chip">${icon("checkCircle", 14)} ${I18N.t("verlaufType." + c.type)}</div>`).join("")}
       </div>` : ""}
 
+      ${status !== "ended" ? `
       <button class="btn-primary" data-goto="plan">
         ${I18N.t("overview.viewPlan")} ${icon("arrowRight", 16)}
-      </button>
+      </button>` : ""}
 
       ${offers.length ? `
       <div style="display:flex;flex-direction:column;gap:12px;">
@@ -654,6 +672,23 @@
   // Klick-Handlers – die [data-goto]-Buttons werden ohnehin schon einmalig
   // in renderAll() gebunden (siehe dortigen Kommentar), das gilt auch für
   // diesen Button, da renderOverview() vor dieser Bindung läuft.
+  // Aufruf zur Reisebewertung – nur bei beendeten Reisen und nur, wenn
+  // BEWERTUNG_URL konfiguriert ist. Steht bewusst direkt unter der
+  // Reisekarte, als auffälligste Aktion der Startseite nach der Reise.
+  function renderReviewCta() {
+    if (!state.bewertungUrl) return "";
+    const stars = Array.from({ length: 5 }, () => icon("star", 18)).join("");
+    return `
+      <a class="review-cta" href="${escapeHtml(state.bewertungUrl)}" target="_blank" rel="noopener">
+        <div class="review-cta-stars" aria-hidden="true">${stars}</div>
+        <div class="review-cta-eyebrow">${I18N.t("review.eyebrow")}</div>
+        <div class="review-cta-title">${I18N.t("review.title")}</div>
+        <div class="review-cta-text">${I18N.t("review.text")}</div>
+        <span class="review-cta-button">${I18N.t("review.cta")} ${icon("arrowRight", 16)}</span>
+        <div class="review-cta-meta">${I18N.t("review.meta")}</div>
+      </a>`;
+  }
+
   function renderNextTripEntry() {
     const voucher = nextTripVoucherAmount();
     const grund = state.data.ReiseGrund || {};
@@ -1046,12 +1081,119 @@
     `;
   }
 
+  // ---------- Flugstatus (AeroDataBox über /api/flugstatus) ----------
+  //
+  // Für jedes Flugsegment (type "F") im Reiseplan wird der Live-Status
+  // über flightCarrier + flightNumber + departureDate abgefragt. Ob sich ein
+  // externer (kostenpflichtiger) Aufruf lohnt – Zeitfenster rund um den
+  // Abflugtag, Cache – entscheidet der Server; außerhalb des Fensters kommt
+  // data: null und hier wird einfach nichts angezeigt. Für beendete Reisen
+  // (Rückblick) wird gar nicht erst gefragt.
+  const FLIGHT_STATUS_REFRESH_MS = 5 * 60 * 1000;
+  const FLIGHT_STATUS_BAD = new Set(["Canceled", "CanceledUncertain", "Diverted"]);
+  const FLIGHT_STATUS_FINAL = new Set(["Arrived", "Canceled", "Diverted"]);
+
+  function flightStatusKey(item) {
+    return `${item.flightCarrier || ""}${item.flightNumber || ""}_${(item.departureDate || "").slice(0, 8)}`;
+  }
+
+  async function loadFlightStatus(item, key) {
+    const prev = state.flightStatusCache.get(key);
+    state.flightStatusCache.set(key, { loading: true, time: Date.now(), data: prev && prev.data, hinweis: prev && prev.hinweis });
+    let entry;
+    try {
+      const params = new URLSearchParams({
+        carrier: item.flightCarrier,
+        flight: item.flightNumber,
+        date: (item.departureDate || "").slice(0, 8),
+        dep: item.departureAirportCode || ""
+      });
+      const res = await fetch(`/api/flugstatus?${params}`);
+      const json = await res.json();
+      entry = { time: Date.now(), data: json.data || null, hinweis: json.source === "demo" ? json.hinweis : "" };
+    } catch (err) {
+      entry = { time: Date.now(), data: (prev && prev.data) || null, hinweis: "" };
+    }
+    state.flightStatusCache.set(key, entry);
+    // Immer neu rendern (auch wenn gerade eine andere Ansicht offen ist):
+    // der Reiseplan wird beim Start vorab gerendert, showView() rendert
+    // beim Wechsel nicht neu – sonst bliebe der Status unsichtbar.
+    renderPlan();
+    scheduleFlightStatusRefresh(entry);
+  }
+
+  // Solange ein Flug noch nicht abgeschlossen ist, alle paar Minuten neu
+  // rendern – renderFlightStatus() lädt dabei veraltete Einträge
+  // automatisch nach (der Server-Cache begrenzt die externen Aufrufe).
+  function scheduleFlightStatusRefresh(entry) {
+    if (!entry.data || FLIGHT_STATUS_FINAL.has(entry.data.status) || state.flightStatusTimer) return;
+    state.flightStatusTimer = setTimeout(() => {
+      state.flightStatusTimer = null;
+      renderPlan();
+    }, FLIGHT_STATUS_REFRESH_MS + 1000);
+  }
+
+  function fmtDelay(min) {
+    if (min == null || Math.abs(min) < 5) return "";
+    return min > 0 ? I18N.t("flight.delay", { min }) : I18N.t("flight.early", { min: -min });
+  }
+
+  function flightMovementLine(m, labelKey, extras) {
+    if (!m) return "";
+    const time = m.expected || m.scheduled;
+    const parts = [];
+    if (time) {
+      const changed = m.scheduled && m.expected && m.scheduled !== m.expected;
+      parts.push(`${I18N.t(labelKey, { time: `<strong>${escapeHtml(time)}</strong>` })}${changed ? ` <s>${escapeHtml(m.scheduled)}</s>` : ""}`);
+    }
+    extras.forEach(([key, value]) => { if (value) parts.push(I18N.t(key, { v: escapeHtml(value) })); });
+    return parts.length ? `<div class="flight-status-line">${parts.join(" · ")}</div>` : "";
+  }
+
+  function renderFlightStatus(item) {
+    if (!item.flightCarrier || !item.flightNumber || !item.departureDate) return "";
+    if (tripStatus() === "ended") return "";
+
+    const key = flightStatusKey(item);
+    const entry = state.flightStatusCache.get(key);
+    if (!entry || (!entry.loading && Date.now() - entry.time > FLIGHT_STATUS_REFRESH_MS)) {
+      loadFlightStatus(item, key);
+    }
+    const s = entry && entry.data;
+    if (!s) return "";
+
+    const dep = s.departure || {};
+    const arr = s.arrival || {};
+    const isBad = FLIGHT_STATUS_BAD.has(s.status);
+    const isLate = s.status === "Delayed" || (dep.delayMin != null && dep.delayMin >= 15);
+    const tone = isBad ? "is-bad" : isLate ? "is-warn" : "is-ok";
+    const label = s.status && s.status !== "Unknown" ? I18N.t(`flight.status.${s.status}`) : "";
+    const delay = isBad ? "" : fmtDelay(dep.delayMin);
+    const chip = label || delay
+      ? `<span class="flight-status-chip ${tone}">${escapeHtml([label, delay].filter(Boolean).join(" · "))}</span>`
+      : "";
+
+    const lines = isBad ? "" : [
+      flightMovementLine(dep, "flight.departure", [["flight.terminal", dep.terminal], ["flight.gate", dep.gate], ["flight.checkIn", dep.checkInDesk]]),
+      flightMovementLine(arr, "flight.arrival", [["flight.terminal", arr.terminal], ["flight.belt", arr.baggageBelt]])
+    ].join("");
+
+    if (!chip && !lines) return "";
+    return `
+      <div class="flight-status">
+        ${chip}
+        ${lines}
+        ${entry.hinweis ? `<div class="places-hinweis">${escapeHtml(entry.hinweis)}</div>` : ""}
+      </div>`;
+  }
+
   function renderTimelineRow(item, isLast, dayKeyStr) {
     const meta = VERLAUF_META[item.type] || { icon: "mountain" };
     let title = verlaufTypeLabel(item.type);
     let sub = "";
     let time = "";
     let highlight = false;
+    let extra = "";
 
     if (item.type === "F") {
       title = `${item.flightType === "R" ? I18N.t("plan.returnFlight") : I18N.t("plan.outboundFlight")} ${escapeHtml(item.flightCarrier || "")} ${escapeHtml(item.flightNumber || "")}`.trim();
@@ -1060,6 +1202,7 @@
       const arr = fmtTime(item.arrivalDateTime);
       time = dep && arr ? `${dep} – ${arr}` : dep;
       highlight = true;
+      extra = renderFlightStatus(item);
     } else if (item.type === "H") {
       title = I18N.t("plan.checkIn", { hotel: escapeHtml(item.hotelName || "") });
       sub = [item.roomCategoryName, item.mealsCategoryName].filter(Boolean).map(escapeHtml).join(" · ");
@@ -1124,6 +1267,7 @@
             <div>
               <div class="timeline-card-title">${title}</div>
               ${sub ? `<div class="timeline-card-sub">${sub}</div>` : ""}
+              ${extra}
             </div>
             ${isDetailLink ? `<span class="doc-chevron">${icon("chevronRight", 16)}</span>` : ""}
           </div>
@@ -1891,13 +2035,24 @@
 
   // Vorbefüllte Nachricht mit Reisekontext, damit das Büro sofort weiß,
   // um welche Reise es geht, ohne dass der Gast das selbst tippen muss.
+  // Als Referenz dient bewusst ReiseGrund.travelReference (die
+  // Vorgangsnummer aus dem MidOffice, z.B. "7678") und NICHT die travelID –
+  // mit der Vorgangsnummer findet das Büro den Vorgang direkt im MidOffice.
+  // Fehlt travelReference, geht die Nachricht ohne Referenz raus (kein
+  // Rückfall auf die travelID). Zusätzlich wird der Reisezeitraum
+  // (checkinDate–checkoutDate) mitgeschickt, sofern vorhanden.
   function whatsappTravelMessage() {
     const grund = state.data.ReiseGrund || {};
     const title = grund.travelTitle ? ` "${grund.travelTitle}"` : "";
-    const ref = grund.travelID || state.travelID || "";
+    const ref = String(grund.travelReference || "").trim();
+    const from = fmtDate(grund.checkinDate);
+    const to = fmtDate(grund.checkoutDate);
+    const period = from && to
+      ? I18N.t("office.travelPeriodLabel", { from, to })
+      : (from ? I18N.t("office.travelPeriodFromLabel", { from }) : "");
     return ref
-      ? I18N.t("office.whatsappMessage", { title, ref: I18N.t("office.travelRefLabel", { ref }) })
-      : I18N.t("office.whatsappMessageNoRef", { title });
+      ? I18N.t("office.whatsappMessage", { title, period, ref: I18N.t("office.travelRefLabel", { ref }) })
+      : I18N.t("office.whatsappMessageNoRef", { title, period });
   }
 
   // Social-Media-Links im Bereich "Mein Reisebüro" – nur anzeigen, wenn

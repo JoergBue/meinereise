@@ -28,6 +28,8 @@ function demoReiseData(travelID) {
           checkinDate: "20261003",
           checkoutDate: "20261011",
           travelID: String(travelID || "291922"),
+          // Vorgangsnummer aus dem MidOffice – Referenz in der WhatsApp-Nachricht
+          travelReference: "7678",
           travelTitle: "Sizilien Rundreise",
           travelPrice: "245000",
           travelPriceF: "2.450,00",
@@ -587,4 +589,32 @@ function demoPortPlacesData(port) {
   return { restaurants: [], attractions };
 }
 
-module.exports = { demoReiseData, demoOfficeData, demoPlacesData, demoPortPlacesData };
+// Demo-Flugstatus für /api/flugstatus, solange kein AERODATABOX_API_KEY
+// gesetzt ist – gleiches (bereits normalisiertes) Format, das server.js
+// aus der AeroDataBox-Antwort baut (siehe normalizeFlightStatus()).
+// Passend zu den beiden Demo-Flügen oben; jeder andere Flug bekommt einen
+// neutralen "planmäßig"-Status ohne Zeiten.
+function demoFlightStatus(carrier, flight, date) {
+  const number = `${carrier} ${flight}`;
+  if (carrier === "LH" && flight === "1829") {
+    return {
+      number, status: "Delayed", aircraft: "Airbus A320neo", updatedUtc: "",
+      departure: { airport: "FRA", scheduled: "07:30", expected: "07:55", isActual: false, delayMin: 25, terminal: "1", gate: "A26", checkInDesk: "401-420", baggageBelt: "" },
+      arrival: { airport: "CTA", scheduled: "10:15", expected: "10:35", isActual: false, delayMin: 20, terminal: "", gate: "", checkInDesk: "", baggageBelt: "" }
+    };
+  }
+  if (carrier === "LH" && flight === "1830") {
+    return {
+      number, status: "Expected", aircraft: "Airbus A320neo", updatedUtc: "",
+      departure: { airport: "CTA", scheduled: "11:00", expected: "11:00", isActual: false, delayMin: 0, terminal: "A", gate: "12", checkInDesk: "", baggageBelt: "" },
+      arrival: { airport: "FRA", scheduled: "13:40", expected: "13:35", isActual: false, delayMin: -5, terminal: "1", gate: "", checkInDesk: "", baggageBelt: "14" }
+    };
+  }
+  return {
+    number, status: "Expected", aircraft: "", updatedUtc: "",
+    departure: { airport: "", scheduled: "", expected: "", isActual: false, delayMin: null, terminal: "", gate: "", checkInDesk: "", baggageBelt: "" },
+    arrival: { airport: "", scheduled: "", expected: "", isActual: false, delayMin: null, terminal: "", gate: "", checkInDesk: "", baggageBelt: "" }
+  };
+}
+
+module.exports = { demoReiseData, demoOfficeData, demoPlacesData, demoPortPlacesData, demoFlightStatus };

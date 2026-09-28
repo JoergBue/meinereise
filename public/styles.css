@@ -270,6 +270,14 @@ html, body {
 .timeline-card-sub a { color: var(--accent-ink); }
 .timeline-card-sub table { border-collapse: collapse; max-width: 100%; }
 .timeline-card-sub td { padding: 2px 6px 2px 0; }
+.flight-status { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
+.flight-status-chip { align-self: flex-start; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.flight-status-chip.is-ok { background: #E3F4E8; color: #1E6B3A; }
+.flight-status-chip.is-warn { background: #FFF1D6; color: #8A5300; }
+.flight-status-chip.is-bad { background: #FDE2E1; color: #A1261F; }
+.flight-status-line { font-size: 12.5px; color: var(--ink-soft); }
+.flight-status-line strong { color: var(--ink, inherit); font-weight: 600; }
+.flight-status-line s { opacity: .7; }
 .timeline-card-sub img { max-width: 100%; height: auto; border-radius: 8px; }
 .timeline-card-sub ul, .timeline-card-sub ol { padding-left: 18px; margin: 4px 0; }
 .timeline-card.is-highlight .timeline-card-sub { color: var(--accent-ink); }
@@ -667,3 +675,24 @@ body.gallery-lightbox-open { overflow: hidden; }
   .gallery-lightbox-nav { width: 36px; height: 36px; }
   .gallery-lightbox-slide { padding: 48px 8px; }
 }
+
+/* Aufruf zur Reisebewertung (nur nach Reiseende, siehe renderReviewCta) */
+.review-cta {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: 18px; border-radius: 18px; text-decoration: none;
+  background: linear-gradient(135deg, var(--accent), var(--accent-ink));
+  color: var(--accent-contrast);
+  box-shadow: 0 8px 24px -10px var(--accent);
+}
+.review-cta-stars { display: flex; gap: 3px; color: #FFC94D; margin-bottom: 2px; }
+.review-cta-stars svg { fill: currentColor; }
+.review-cta-eyebrow { font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; opacity: .85; }
+.review-cta-title { font-family: var(--font-display); font-size: 21px; font-weight: 600; line-height: 1.2; }
+.review-cta-text { font-size: 13.5px; line-height: 1.5; opacity: .92; }
+.review-cta-button {
+  margin-top: 8px; display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 18px; border-radius: 999px; font-size: 14.5px; font-weight: 600;
+  background: var(--accent-contrast); color: var(--accent-ink);
+}
+.review-cta:active .review-cta-button { transform: scale(.98); }
+.review-cta-meta { font-size: 11.5px; opacity: .75; }

@@ -46,6 +46,8 @@ Alle Zugangsdaten für die BOSYS-Schnittstelle stehen ausschließlich in
 | `BOSYS_SESSION_ID`   | GetReiseData.sessionID (daraus liest BOSYS Firma/Büro/Kunde) |
 | `BOSYS_OFFICE_TOKEN` | GetOffice.Token (der "HashKey") für den Bereich "Mein Reisebüro" – unabhängig von `BOSYS_SESSION_ID`/travelID |
 | `GOOGLE_PLACES_API_KEY` | API-Key für "In der Nähe" (Google Places API "New") – unabhängig von BOSYS |
+| `BEWERTUNG_URL` | Link zur Reisebewertung (Projekt "feedback"), erscheint nach Reiseende auf der Startseite. `{hashKey}` wird durch die travelID ersetzt, z.B. `http://localhost:3001/bewertung/{hashKey}` |
+| `AERODATABOX_API_KEY` | Flugstatus im Reiseplan (AeroDataBox, Standard: über RapidAPI) – ohne Key Demo-Status. Bei API.Market/Direktzugang zusätzlich `AERODATABOX_BASE_URL` + `AERODATABOX_KEY_HEADER` setzen (siehe `.env.example`) |
 | `WHATSAPP_OFFICE_NUMBER` | WhatsApp-Nummer des Büros für den Kontakt-Button in "Mein Reisebüro" – unabhängig von BOSYS |
 | `NEXT_TRIP_CGI_URL`  | Endpunkt des MidOffice-CGI für "Nächste Reise" (POST, JSON) – unabhängig von BOSYS_GATEWAY_URL |
 | `NEXT_TRIP_CGI_TOKEN` | optionales Bearer-Token für `NEXT_TRIP_CGI_URL`         |
@@ -140,6 +142,7 @@ Hostinger. Die App liegt komplett in diesem GitHub-Repository
    BOSYS_SESSION_ID=<echte sessionID>
    BOSYS_OFFICE_TOKEN=<HashKey für Mein Reisebüro, falls vorhanden>
    GOOGLE_PLACES_API_KEY=<Google-Places-API-Key, falls vorhanden>
+   AERODATABOX_API_KEY=<AeroDataBox-Key (RapidAPI), falls vorhanden>
    WHATSAPP_OFFICE_NUMBER=<WhatsApp-Nummer des Büros, falls vorhanden>
    NEXT_TRIP_CGI_URL=<Endpunkt des MidOffice-CGI für "Nächste Reise", falls vorhanden>
    NEXT_TRIP_CGI_TOKEN=<Bearer-Token dafür, falls vorhanden>
