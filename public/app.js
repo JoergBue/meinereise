@@ -681,6 +681,8 @@
         </div>
       </div>` : ""}
 
+      ${status === "ended" && window.Photobook ? window.Photobook.entryCard() : ""}
+
       ${status === "ended" ? renderNextTripEntry() : ""}
     `;
 
@@ -2573,6 +2575,7 @@
     renderOffice();
     renderPrice();
     renderNextTrip();
+    if (window.Photobook) window.Photobook.render();
     showView(state.activeView);
 
     document.querySelectorAll("[data-goto]").forEach((el) => {
@@ -2656,6 +2659,15 @@
       else if (!state.travelID) renderTravelIdEntry(); // Eingabemaske übersetzen
     });
   }
+
+  // Schnittstelle für Zusatzmodule in eigenen Dateien (aktuell nur
+  // photobook.js, "Mein Reisebuch") – bewusst nur lesende Helfer plus
+  // showView/icon, damit die Module nicht in app.js-Interna eingreifen.
+  window.MeineReiseApp = {
+    state, ICONS, icon, escapeHtml, fmtDate, parseYYYYMMDD, dayKey, daysBetween,
+    tripDayList, tripStatus, verlaufList, verlaufForDay, hotelForDay,
+    cruiseForDay, cruiseRouteStopForDay, officeInfo, showView
+  };
 
   I18N.applyStaticTranslations();
   initLangSwitcher();

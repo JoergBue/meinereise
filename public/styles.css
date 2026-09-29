@@ -706,3 +706,130 @@ body.gallery-lightbox-open { overflow: hidden; }
 .travel-id-entry-text { font-size: 14px; line-height: 1.5; color: var(--ink-soft); }
 .travel-id-form { gap: 12px; margin-top: 4px; }
 .travel-id-entry-hint { font-size: 12.5px; line-height: 1.45; color: var(--ink-soft); }
+
+/* ---------- Mein Reisebuch (photobook.js) ---------- */
+#view-photobook { display: flex; flex-direction: column; gap: 14px; }
+#view-photobook[hidden] { display: none; }
+.pb-intro { display: flex; flex-direction: column; gap: 14px; }
+.pb-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.pb-steps li { display: flex; align-items: center; gap: 12px; font-size: 14px; color: var(--ink); }
+.pb-steps li svg {
+  color: var(--accent-ink); flex-shrink: 0; box-sizing: content-box; padding: 8px;
+  background: var(--accent-soft); border-radius: 999px;
+}
+.pb-file-btn { cursor: pointer; }
+.pb-privacy { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-soft); }
+.pb-note { font-size: 13px; line-height: 1.45; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-ink); }
+.pb-note.is-warn { background: #FFF1D6; color: #8A5300; }
+.pb-summary { font-size: 13.5px; color: var(--ink-soft); }
+.pb-progress { display: flex; flex-direction: column; gap: 8px; padding: 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+.pb-progress-text { font-size: 14px; }
+.pb-progress-bar { height: 8px; border-radius: 99px; background: var(--neutral-chip); overflow: hidden; }
+.pb-progress-bar span { display: block; height: 100%; background: var(--accent); transition: width .2s; }
+
+.pb-pager {
+  display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none;
+  border-radius: 6px; box-shadow: 0 10px 30px -14px rgba(0,0,0,.35);
+}
+.pb-pager::-webkit-scrollbar { display: none; }
+.pb-slide { flex: 0 0 100%; scroll-snap-align: start; }
+.pb-pager-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.pb-nav-btn {
+  width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--ink); display: grid; place-items: center; cursor: pointer;
+}
+.pb-flip { display: grid; transform: scaleX(-1); }
+.pb-page-indicator { font-size: 13px; color: var(--ink-soft); }
+
+.pb-hint { font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
+.pb-selected { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
+.pb-selected img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; }
+.pb-editor:empty { display: none; }
+.pb-field { display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; color: var(--ink-soft); margin-bottom: 10px; }
+.pb-field input, .pb-field textarea {
+  width: 100%; box-sizing: border-box; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 10px 12px; font-size: 14px; font-family: inherit; color: var(--ink); resize: vertical;
+}
+.pb-field input:focus, .pb-field textarea:focus { outline: 2px solid var(--accent-300); outline-offset: 1px; }
+.pb-link { background: none; border: none; padding: 0; color: var(--accent-ink); font-size: 13px; font-family: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+
+.pb-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.pb-btn {
+  display: inline-flex; align-items: center; gap: 7px; padding: 9px 13px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--ink);
+  font-size: 13.5px; font-weight: 500; font-family: inherit; cursor: pointer;
+}
+.pb-btn svg { color: var(--accent-ink); }
+.pb-btn-danger, .pb-btn-danger svg { color: #A1261F; }
+.pb-btn-plain { border-color: transparent; background: none; }
+.pb-order { display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 14px; border: 1px dashed var(--accent-300); background: var(--accent-soft); }
+
+/* Buchseite: Container-Einheiten (cqw) -> skaliert identisch in Vorschau und PDF */
+.pb-page {
+  container-type: inline-size; position: relative; aspect-ratio: 3 / 4; width: 100%;
+  background: #fff; color: #1d2330; overflow: hidden; box-sizing: border-box;
+  display: flex; flex-direction: column; padding: 7cqw 7cqw 9cqw; gap: 3cqw;
+  font-family: var(--font-body);
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.pb-page-num { position: absolute; bottom: 3.5cqw; left: 0; right: 0; text-align: center; font-size: 2.4cqw; color: #9aa0ab; }
+.pb-eyebrow { font-size: 2.6cqw; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.pb-h1 { font-family: var(--font-display); font-size: 6.2cqw; line-height: 1.1; font-weight: 600; }
+.pb-h2 { font-family: var(--font-display); font-size: 3.6cqw; font-weight: 600; margin-top: 2cqw; color: var(--accent-ink); }
+.pb-lead { font-size: 3.2cqw; color: #5b6272; display: flex; align-items: center; gap: 1.2cqw; }
+.pb-lead svg { width: 3.2cqw; height: 3.2cqw; color: var(--accent); }
+.pb-text { font-size: 3cqw; line-height: 1.45; color: #3a4150; }
+.pb-day-head { display: flex; flex-direction: column; gap: 1.4cqw; }
+
+.pb-photo {
+  display: block; width: 100%; height: 100%; min-height: 0; padding: 0; border: none; background: #eef0f3;
+  border-radius: 1.2cqw; overflow: hidden; cursor: pointer; position: relative;
+}
+.pb-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pb-photo.is-selected { outline: 1.2cqw solid var(--accent); outline-offset: -1.2cqw; }
+.pb-photo-empty { display: grid; place-items: center; color: #b4b9c2; cursor: default; }
+
+.pb-grid { flex: 1; min-height: 0; display: grid; gap: 2.4cqw; }
+.pb-grid-1 { grid-template: 1fr / 1fr; }
+.pb-grid-2 { grid-template: 1fr / 1fr 1fr; }
+.pb-grid-2r { grid-template: 1fr 1fr / 1fr; }
+.pb-grid-3 { grid-template: 1.4fr 1fr / 1fr 1fr; }
+.pb-grid-3 > :first-child { grid-column: 1 / -1; }
+.pb-grid-4 { grid-template: 1fr 1fr / 1fr 1fr; }
+
+.pb-cover { padding: 0; gap: 0; }
+.pb-cover-photo { flex: 1; border-radius: 0; }
+.pb-cover-band { background: var(--accent); color: var(--accent-contrast); padding: 6cqw 7cqw 7cqw; display: flex; flex-direction: column; gap: 1.6cqw; }
+.pb-cover-title { font-family: var(--font-display); font-size: 8cqw; line-height: 1.05; font-weight: 700; }
+.pb-cover-sub { font-size: 3.4cqw; opacity: .92; }
+.pb-cover-date { font-size: 2.8cqw; letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
+
+.pb-facts { display: grid; grid-template-columns: 2.2fr 1fr 1fr 1fr; gap: 2cqw; margin: 2cqw 0; }
+.pb-fact { background: var(--accent-soft); border-radius: 1.6cqw; padding: 2.4cqw; }
+.pb-fact-v { font-family: var(--font-display); font-size: 3.4cqw; font-weight: 600; color: var(--accent-ink); line-height: 1.2; }
+.pb-fact-k { font-size: 2.2cqw; color: #5b6272; margin-top: .6cqw; }
+.pb-line { display: flex; gap: 2cqw; align-items: flex-start; }
+.pb-line svg { width: 3.4cqw; height: 3.4cqw; color: var(--accent); flex-shrink: 0; margin-top: .4cqw; }
+.pb-line-text { font-size: 3cqw; font-weight: 600; }
+.pb-line-sub { font-size: 2.6cqw; color: #5b6272; }
+
+.pb-closing { gap: 3.4cqw; }
+.pb-collage { flex: 1; min-height: 0; display: grid; gap: 1.6cqw; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; }
+.pb-collage-1 { grid-template-columns: 1fr; }
+.pb-collage-2, .pb-collage-4 { grid-template-columns: 1fr 1fr; }
+.pb-closing-text { font-family: var(--font-display); font-size: 4.4cqw; line-height: 1.3; text-align: center; }
+.pb-closing-stats { font-size: 2.6cqw; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); text-align: center; font-weight: 600; }
+.pb-imprint { font-size: 2.4cqw; color: #5b6272; text-align: center; line-height: 1.5; border-top: .3cqw solid #e5e7eb; padding-top: 2.4cqw; }
+.pb-madewith { margin-top: 1cqw; color: #9aa0ab; }
+
+/* PDF: nur die Buchseiten drucken, je Seite ein Blatt 210 × 280 mm */
+.pb-print { display: none; }
+@media print {
+  @page { size: 210mm 280mm; margin: 0; }
+  html.pb-printing body > *:not(.pb-print) { display: none !important; }
+  html.pb-printing, html.pb-printing body { background: #fff !important; margin: 0; padding: 0; }
+  html.pb-printing .pb-print { display: block; }
+  .pb-print .pb-page { width: 210mm; height: 280mm; aspect-ratio: auto; break-after: page; page-break-after: always; }
+  .pb-print .pb-page:last-child { break-after: auto; page-break-after: auto; }
+  .pb-print .pb-photo.is-selected { outline: none; }
+}
